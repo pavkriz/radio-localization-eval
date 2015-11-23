@@ -1,4 +1,4 @@
-# Evaluation of several radio-fingerprint-based algorithms
+# Evaluation of several radio-fingerprint-based localization algorithms
 
 Copy config.properties.sample into a local config.properties and adjust it in order to allow the application to load the live data from the server.
 
