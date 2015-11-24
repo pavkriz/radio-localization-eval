@@ -112,7 +112,7 @@ public class Run extends ApplicationFrame {
 
         Properties prop = new Properties();
         try {
-            prop.load(ClassLoader.getSystemResourceAsStream("config.propertiesx"));
+            prop.load(ClassLoader.getSystemResourceAsStream("config.properties"));
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("Copy config.properties.sample to config.properties and adjust according to your needs");

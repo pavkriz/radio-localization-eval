@@ -1,4 +1,4 @@
-package cz.uhk.fim.beacon;
+package cz.uhk.fim.beacon.reducer;
 
 import cz.uhk.fim.beacon.data.general.TransmitterSignal;
 import cz.uhk.fim.beacon.data.scan.DummyScan;

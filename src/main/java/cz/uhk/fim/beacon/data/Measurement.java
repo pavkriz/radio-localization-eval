@@ -1,6 +1,6 @@
 package cz.uhk.fim.beacon.data;
 
-import cz.uhk.fim.beacon.SignalSeriesReducer;
+import cz.uhk.fim.beacon.reducer.SignalSeriesReducer;
 import cz.uhk.fim.beacon.data.general.TransmitterSignal;
 import cz.uhk.fim.beacon.data.scan.BleScan;
 import cz.uhk.fim.beacon.data.scan.CellScan;
