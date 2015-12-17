@@ -1,5 +1,6 @@
 package cz.uhk.fim.beacon.ssdistance;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -15,6 +16,10 @@ public class SignalSpaceDistanceCalculator {
     public double calcDistance(Map<String,Double> signals1, Map<String,Double> signals2) {
         //System.out.println("sigs1 " + signals1);
         //System.out.println("sigs2 " + signals2);
+
+        // test if signal sets have any transmitter in common;
+        // if not, return POSITIVE_INFINITY as the distance of two fingerprints having no transmitter in common
+        if (Collections.disjoint(signals1.keySet(), signals2.keySet())) return Double.POSITIVE_INFINITY;
         // fit scans (i.e. add values missing from another scan with a "zero" value)
         signals1.forEach((id, signalStrength) -> {
             // add transmitter from signals1 when missing in signals2

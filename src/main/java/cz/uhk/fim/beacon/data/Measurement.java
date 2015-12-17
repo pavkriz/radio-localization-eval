@@ -6,6 +6,7 @@ import cz.uhk.fim.beacon.data.scan.BleScan;
 import cz.uhk.fim.beacon.data.scan.CellScan;
 import cz.uhk.fim.beacon.data.scan.WifiScan;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +23,17 @@ public class Measurement {
     int x;
     int y;
     String level;   // building and floor
+    String manufacturer;
+    String createdAt; // e.g. "2015-11-13 13:28:24"
+
+    public LocalDateTime getDateTime() {
+        // convert to ISO date-time format and parse
+        return LocalDateTime.parse(createdAt.replace(' ','T'));
+    }
+
+    public String getDeviceManufacturer() {
+        return manufacturer;
+    }
 
     public String getId() {
         return id;
@@ -94,6 +106,10 @@ public class Measurement {
         // create map by transmitter id ("group by id")
         Map<String, List<TransmitterSignal>> signalsById = new HashMap<>();
         for (TransmitterSignal signal : signals) {
+            if (signal instanceof WifiScan && (((WifiScan) signal).getSsid().equals("Datafestak"))) {
+                //System.out.println("Datafestak ignored");
+                //continue;
+            }
             if (signal.getTime() <= maxTimeMs) {
                 List<TransmitterSignal> singleTransmitterList = signalsById.get(signal.getId());
                 if (singleTransmitterList == null) {

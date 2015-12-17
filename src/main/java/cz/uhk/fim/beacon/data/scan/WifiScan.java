@@ -8,6 +8,7 @@ import cz.uhk.fim.beacon.data.general.TransmitterSignal;
 public class WifiScan implements TransmitterSignal {
     String mac;
     double rssi;
+    String ssid;
     int time; // ms;
 
     public String getId() {
@@ -25,5 +26,9 @@ public class WifiScan implements TransmitterSignal {
 
     public int getTime() {
         return time;
+    }
+
+    public String getSsid() {
+        return ssid;
     }
 }

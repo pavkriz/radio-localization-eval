@@ -19,6 +19,16 @@ public class NNPositionEstimator implements PositionEstimator {
         this.distanceCalculator = distanceCalculator;
     }
 
+    /**
+     * Returns nearest neighbour of the "uknown" measurement in "calibratedList" measurements.
+     * Distance is calculated using distanceCalculator (passed to the contructor).
+     * Returns null when no nearest neighbour found (i.e. "unknown" measurement has nothing in common with
+     * list of calibrated measurements).
+     *
+     * @param calibratedList
+     * @param unknown
+     * @return
+     */
     protected NearestNeighbour getNearestNeighbour(List<Measurement> calibratedList, Measurement unknown) {
         NearestNeighbour nearest = new NearestNeighbour();
         for (Measurement calibrated : calibratedList) {
@@ -29,12 +39,17 @@ public class NNPositionEstimator implements PositionEstimator {
             }
         }
         logger.debug("getNearestNeighbour nearestDistance={} nearestScanSignals={}", nearest.distance, nearest.measurement.getReducedBleScans());
-        return nearest;
+        if (nearest.distance < Double.POSITIVE_INFINITY) {
+            return nearest;
+        } else {
+            return null;
+        }
     }
 
     @Override
     public Position estimatePosition(List<Measurement> calibratedList, Measurement unknown) {
-        return getNearestNeighbour(calibratedList, unknown).getMeasurement().getPosition();
+        NearestNeighbour nn = getNearestNeighbour(calibratedList, unknown);
+        return nn == null ? null : nn.getMeasurement().getPosition();
     }
 
     public class NearestNeighbour {
