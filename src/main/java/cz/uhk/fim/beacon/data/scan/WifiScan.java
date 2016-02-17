@@ -12,7 +12,7 @@ public class WifiScan implements TransmitterSignal {
     int time; // ms;
 
     public String getId() {
-        return "WIFI:"+mac;
+        return "WIFI:"+mac.toLowerCase();
     }
 
     public double getSignalStrength() {

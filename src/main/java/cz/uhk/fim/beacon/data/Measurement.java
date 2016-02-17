@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Created by Kriz on 16. 11. 2015.
@@ -55,45 +56,45 @@ public class Measurement {
         return level;
     }
 
-    public Map<String, Double> getReducedBleScans(int maxTimeMs) {
-            return getReducedScans(bleScans, maxTimeMs);
+    public Map<String, Double> getReducedBleScans(Predicate<TransmitterSignal> filterPredicate) {
+            return getReducedScans(bleScans, filterPredicate);
         }
 
     public Map<String, Double> getReducedBleScans() {
-        return getReducedBleScans(Integer.MAX_VALUE);
+        return getReducedBleScans(s -> true);
     }
 
-    public Map<String, Double> getReducedCellScans(int maxTimeMs) {
-        return getReducedScans(cellScans, maxTimeMs);
+    public Map<String, Double> getReducedCellScans(Predicate<TransmitterSignal> filterPredicate) {
+        return getReducedScans(cellScans, filterPredicate);
     }
 
-    public Map<String, Double> getReducedWifiScans(int maxTimeMs) {
-        return getReducedScans(wifiScans, maxTimeMs);
+    public Map<String, Double> getReducedWifiScans(Predicate<TransmitterSignal> filterPredicate) {
+        return getReducedScans(wifiScans, filterPredicate);
     }
 
     public Map<String, Double> getReducedWifiScans() {
-        return getReducedWifiScans(Integer.MAX_VALUE);
+        return getReducedWifiScans(s -> true);
     }
 
-    public Map<String, Double> getReducedCombinedScans(int maxTimeMs) {
+    public Map<String, Double> getReducedCombinedScans(Predicate<TransmitterSignal> filterPredicate) {
         Map<String, Double> signals = new HashMap<>();
-        signals.putAll(getReducedBleScans(maxTimeMs));
-        signals.putAll(getReducedWifiScans(maxTimeMs));
+        signals.putAll(getReducedBleScans(filterPredicate));
+        signals.putAll(getReducedWifiScans(filterPredicate));
         return signals;
     }
 
     public Map<String, Double> getReducedCombinedScans() {
-        return getReducedCombinedScans(Integer.MAX_VALUE);
+        return getReducedCombinedScans(s->true);
     }
 
-    public Map<String, Double> getReducedCombinedScans(double bleCoef, int maxTimeMs) {
+    public Map<String, Double> getReducedCombinedScans(Predicate<TransmitterSignal> filterPredicate, double bleCoef) {
         Map<String, Double> signals = new HashMap<>();
-        Map<String, Double> bleScans = getReducedBleScans(maxTimeMs);
+        Map<String, Double> bleScans = getReducedBleScans(filterPredicate);
         for (String id : bleScans.keySet()) {
             bleScans.put(id, bleScans.get(id)*bleCoef);
         }
         signals.putAll(bleScans);
-        signals.putAll(getReducedWifiScans(maxTimeMs));
+        signals.putAll(getReducedWifiScans(filterPredicate));
         return signals;
     }
 
@@ -102,15 +103,11 @@ public class Measurement {
      * @param signals
      * @return
      */
-    private Map<String, Double> getReducedScans(List<? extends TransmitterSignal> signals, int maxTimeMs) {
+    private Map<String, Double> getReducedScans(List<? extends TransmitterSignal> signals, Predicate<TransmitterSignal> filterPredicate) {
         // create map by transmitter id ("group by id")
         Map<String, List<TransmitterSignal>> signalsById = new HashMap<>();
         for (TransmitterSignal signal : signals) {
-            if (signal instanceof WifiScan && (((WifiScan) signal).getSsid().equals("Datafestak"))) {
-                //System.out.println("Datafestak ignored");
-                //continue;
-            }
-            if (signal.getTime() <= maxTimeMs) {
+            if (filterPredicate.test(signal)) {
                 List<TransmitterSignal> singleTransmitterList = signalsById.get(signal.getId());
                 if (singleTransmitterList == null) {
                     singleTransmitterList = new ArrayList<>();

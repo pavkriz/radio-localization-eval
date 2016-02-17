@@ -11,7 +11,7 @@ public class BleScan implements TransmitterSignal {
     int time; // ms
 
     public String getId() {
-        return "BLE:"+address;
+        return "BLE:"+address.toLowerCase();
     }
 
     public double getSignalStrength() {
