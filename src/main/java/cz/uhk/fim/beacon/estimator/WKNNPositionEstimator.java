@@ -3,6 +3,8 @@ package cz.uhk.fim.beacon.estimator;
 import cz.uhk.fim.beacon.data.Measurement;
 import cz.uhk.fim.beacon.data.Position;
 import cz.uhk.fim.beacon.ssdistance.MeasurementDistanceCalculator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +13,7 @@ import java.util.List;
  * Created by Kriz on 17. 11. 2015.
  */
 public class WKNNPositionEstimator extends NNPositionEstimator {
+    final static Logger logger = LoggerFactory.getLogger(WKNNPositionEstimator.class);
     boolean weightedMode = true;
     int k;
 
@@ -41,7 +44,8 @@ public class WKNNPositionEstimator extends NNPositionEstimator {
                 }
                 double dist = nn.getDistance();
                 if (dist == 0) dist = 0.0001; // in order to be able to calculate weight of neighbour in distace=1
-                double weight = weightedMode ? 1 / dist : 1;
+                //double weight = weightedMode ? 1 / dist : 1;
+                double weight = weightedMode ? 1.0d / (6*i+1) : 1;
                 weightsSum += weight;
                 // first part of centroid calculation
                 p.setX(p.getX() + weight * nn.getMeasurement().getPosition().getX());

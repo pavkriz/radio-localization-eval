@@ -1,19 +1,22 @@
 package cz.uhk.fim.beacon.ssdistance;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Created by Kriz on 16. 11. 2015.
  */
-public class SignalSpaceDistanceCalculator {
+public class SignalSpaceDistanceCalculator implements SSDistanceCalculator {
     public final double zeroSignal; // dB
 
     public SignalSpaceDistanceCalculator(double zeroSignal) {
         this.zeroSignal = zeroSignal;
     }
 
-    public double calcDistance(Map<String,Double> signals1, Map<String,Double> signals2) {
+    public double calcDistance(Map<String,Double> signals1In, Map<String,Double> signals2In) {
+        Map<String,Double> signals1 = new HashMap<>(signals1In);
+        Map<String,Double> signals2 = new HashMap<>(signals2In);
         //System.out.println("sigs1 " + signals1);
         //System.out.println("sigs2 " + signals2);
 

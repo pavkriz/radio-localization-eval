@@ -56,6 +56,10 @@ public class Measurement {
         return level;
     }
 
+    public List<BleScan> getBleScans() {
+        return bleScans;
+    }
+
     public Map<String, Double> getReducedBleScans(Predicate<TransmitterSignal> filterPredicate) {
             return getReducedScans(bleScans, filterPredicate);
         }
@@ -126,5 +130,17 @@ public class Measurement {
 
     public Position getPosition() {
         return new Position(x, y, level);
+    }
+
+    public void addScansFromAnotherMeasurement(Measurement m) {
+        this.wifiScans.addAll(m.wifiScans);
+        this.bleScans.addAll(m.bleScans);
+        this.cellScans.addAll(m.cellScans);
+    }
+
+    public void setPosition(Position position) {
+        this.x = (int)position.getX();
+        this.y = (int)position.getY();
+        this.level = position.getFloor();
     }
 }

@@ -38,7 +38,7 @@ public class NNPositionEstimator implements PositionEstimator {
                 nearest.distance = dist;
             }
         }
-        logger.debug("getNearestNeighbour nearestDistance={} nearestScanSignals={}", nearest.distance, nearest.measurement.getReducedBleScans());
+        logger.debug("getNearestNeighbour nearestDistance={} x={} y={} nearestBleScanSignals={} nearestWifiScanSignals={}", nearest.distance, nearest.measurement.getX(), nearest.measurement.getY(), nearest.measurement.getReducedBleScans(), nearest.measurement.getReducedWifiScans());
         if (nearest.distance < Double.POSITIVE_INFINITY) {
             return nearest;
         } else {

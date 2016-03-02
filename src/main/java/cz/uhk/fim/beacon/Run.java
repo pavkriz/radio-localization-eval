@@ -15,7 +15,10 @@ import cz.uhk.fim.beacon.estimator.PositionEstimator;
 import cz.uhk.fim.beacon.estimator.WKNNPositionEstimator;
 import cz.uhk.fim.beacon.graph.ExtendedBoxAndWhiskerRenderer;
 import cz.uhk.fim.beacon.graph.MyBoxAndWhiskerCategoryDataset;
+import cz.uhk.fim.beacon.ssdistance.MeasurementDistanceCalculator;
+import cz.uhk.fim.beacon.ssdistance.SSDistanceCalculator;
 import cz.uhk.fim.beacon.ssdistance.SignalSpaceDistanceCalculator;
+import cz.uhk.fim.beacon.ssdistance.SignalSpaceDistanceCalculator2;
 import cz.uhk.fim.beacon.stats.NumberValue;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -34,12 +37,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.imageio.ImageIO;
+import javax.swing.*;
 import java.awt.*;
-import java.awt.geom.AffineTransform;
-import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -53,13 +56,19 @@ import java.util.stream.Stream;
 public class Run extends ApplicationFrame {
     final static Logger logger = LoggerFactory.getLogger(Run.class);
     static double maxY = 0;
-    static double floorPixelsToMeters = 45.0/2250.0; // 45m = 2250 pixels
+    static int k = 2;
+    static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
+    //static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator2();
+    static double floorPixelsToMeters = 45.0/2250.0; // 45m = 2250 pixels // FIM J
+    //static double floorPixelsToMeters = 6.56/315.0; // 45m = 2250 pixels // Krizovi
     static Map<String, String> beaconMacToId;
-    static Set<String> beaconsJ3NP = new HashSet<String>(Arrays.asList("39", "48", "37", "36", "31", "41", "50", "40", "38", "30", "27", "47"));
+    static Set<String> beaconsJ3NP = new HashSet<String>(Arrays.asList("39", "48", "37", "36", "31", "41", "50", "40", "38", "30", "27", "47", "1", "3", "24", "8", "9"));
     static Set<String> beaconsJ3NPa = new HashSet<String>(Arrays.asList("39", "37", "31", "50", "38", "27"));
     static Set<String> beaconsJ3NPb = new HashSet<String>(Arrays.asList("48", "36", "41", "40", "30", "47"));
     static Set<String> beaconsJ3NPc = new HashSet<String>(Arrays.asList("36", "50", "30", "39"));
+    static Set<String> beaconsKrizovi = new HashSet<String>(Arrays.asList("51", "52", "53", "54", "55"));
     static Predicate<TransmitterSignal> baseTxFilter = s -> {
+        if (s.getTime() > 10000) return false;
         if (s instanceof WifiScan) {
             WifiScan ws = (WifiScan)s;
             // only eduroam
@@ -71,7 +80,7 @@ public class Run extends ApplicationFrame {
     };
     static Predicate<TransmitterSignal> floorBeaconsTxFilter = s -> {
         if (s instanceof BleScan) {
-            return beaconsJ3NP.contains(beaconMacToId.get(s.getId()));
+            return beaconsKrizovi.contains(beaconMacToId.get(s.getId())) || beaconsJ3NP.contains(beaconMacToId.get(s.getId()));
         } else {
             return true;
         }
@@ -121,7 +130,8 @@ public class Run extends ApplicationFrame {
         );
         final ChartPanel chartPanel = new ChartPanel(chart);
         chartPanel.setPreferredSize(new java.awt.Dimension(450, 270));
-        setContentPane(chartPanel);
+        add(new JTextField(""), BorderLayout.NORTH);
+        add(chartPanel, BorderLayout.CENTER);
     }
 
     public Run(String title, DefaultCategoryDataset dataset) {
@@ -136,20 +146,33 @@ public class Run extends ApplicationFrame {
                 true, true, false);
         final ChartPanel chartPanel = new ChartPanel(barChart);
         chartPanel.setPreferredSize(new java.awt.Dimension(450, 270));
-        setContentPane(chartPanel);
+        add(new JTextField(""), BorderLayout.NORTH);
+        add(chartPanel, BorderLayout.CENTER);
+    }
+
+
+    private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator) {
+        return crossValidate(measurements, estimator, false);
+    }
+
+    private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator, boolean gridAggregate) {
+        return crossValidate(measurements, estimator, gridAggregate, measurements);
     }
 
     /**
      * Leave-one-out cross-validation
      */
-    private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator) {
+    private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator, boolean gridAggregate, List<Measurement> calibrated) {
         List<NumberValue> listOfErrors = new ArrayList<>();
         // test by leaving one measurement out as the unknown one and the rest as the calibrated ones
-        for (Measurement unknown : measurements) {
+        measurements.parallelStream().forEach(unknown -> {
             List<Measurement> calibratedList = new ArrayList<>();
             // make the copy of the original measurement list without the left-out ("unknown") measurement
-            calibratedList.addAll(measurements);
+            calibratedList.addAll(calibrated);
             calibratedList.remove(unknown);
+            if (gridAggregate) {
+                calibratedList = compactGridPoints(calibratedList);
+            }
             // estimate  position using provided estimator
             Position estimatedPosition = estimator.estimatePosition(calibratedList, unknown);
             if (estimatedPosition != null) {
@@ -166,10 +189,11 @@ public class Run extends ApplicationFrame {
                 // ignore this one leaved-out when estimation was not successful
                 logger.warn("Unable to estimate position of id={} #wifi={} #ble={}", unknown.getId(), unknown.getReducedWifiScans(defaultTxFilter).size(), unknown.getReducedBleScans(defaultTxFilter).size());
             }
-        }
+        });
         Collections.sort(listOfErrors);
         if (listOfErrors.size() > 0) {
             logger.info("max={} id={}", listOfErrors.get(listOfErrors.size() - 1).getNumber(), listOfErrors.get(listOfErrors.size() - 1).getLabel());
+            logger.info("median={} id={}", listOfErrors.get(listOfErrors.size()/2).getNumber(), listOfErrors.get(listOfErrors.size()/2).getLabel());
         } else {
             logger.warn("Absolutely no estimation results");
         }
@@ -180,7 +204,6 @@ public class Run extends ApplicationFrame {
      * Leave-one-out cross-validation
      */
     private static List<EstimatedPosition> crossValidateWithPositions(List<Measurement> measurements, PositionEstimator estimator) {
-        double floorPixelsToMeters = 45.0/2250.0; // 45m = 2250 pixels
         List<EstimatedPosition> estimatedPositions = new ArrayList<>();
         // test by leaving one measurement out as the unknown one and the rest as the calibrated ones
         for (Measurement unknown : measurements) {
@@ -215,9 +238,10 @@ public class Run extends ApplicationFrame {
 
 
     public static void main(String[] args) {
+        logger.info("Start");
         // TODO NNSS: Bahl, P. ; Padmanabhan, V.N.: RADAR: an in-building RF-based user location and tracking system
         // http://research.microsoft.com/pubs/69861/tr-2000-12.pdf
-        // TODO Probabilistic: Teemu Roos,1,3 Petri Myllyma¨ki,1 Henry Tirri,1 Pauli Misikangas,2 and Juha Sieva¨nen2: A Probabilistic Approach to WLAN User Location Estimation
+        // TODO Probabilistic: Teemu Roos,1,3 Petri Myllymaï¿½ki,1 Henry Tirri,1 Pauli Misikangas,2 and Juha Sievaï¿½nen2: A Probabilistic Approach to WLAN User Location Estimation
         // http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.59.7448&rep=rep1&type=pdf
         // TODO neunet: Mauro Brunato ?, Roberto Battiti: Statistical Learning Theory for Location Fingerprinting in Wireless LANs
         // http://disi.unitn.it/~brunato/pubblicazioni/ComNet.pdf
@@ -241,13 +265,20 @@ public class Run extends ApplicationFrame {
         List<Measurement> measurementsFiltered = measurements.stream()
                 .filter(m ->
                                 "J3NP".equals(m.getLevel())
-                                        //&& !m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2015-11-25")
+                                        //&& m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-16") // Krizovi 1. kolo
+                                        //&& (m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-23") && m.getDateTime().isBefore(LocalDateTime.of(2016, 2, 23, 18, 15))) // Krizovi pokus seriove
+                                        //&& (m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-23") && m.getDateTime().isAfter(LocalDateTime.of(2016, 2, 23, 18, 15))) // Krizovi paralelne
+                                        //&& (m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-22") || m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-24")) // J3NP  100ms
+                                        && m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-26") // J3NP  100ms Tx 0dbm
                                         //&& "Sony".equals(m.getDeviceManufacturer())
+                                        //&& "motorola".equals(m.getDeviceManufacturer()) // Nexus
                                         // reported to be wrong
                                         //&& !"29faa5a3-dff0-44b9-beed-351f1eaf7581".equals(m.getId())
-                                        && !"700047ed-fe12-4792-951b-ac98d893f1a4".equals(m.getId())
-                                        && !"e494bf5c-2ffe-4bd7-b23d-ce05d7efd216".equals(m.getId())
+                                        //&& !"700047ed-fe12-4792-951b-ac98d893f1a4".equals(m.getId())
+                                        //&& !"e494bf5c-2ffe-4bd7-b23d-ce05d7efd216".equals(m.getId())
                 ).collect(Collectors.toList());
+
+        //measurementsFiltered = compactGridPoints(measurementsFiltered);
 
         for (Measurement m : measurementsFiltered) {
             if (m.getId().equals("29faa5a3-dff0-44b9-beed-351f1eaf7581")) {
@@ -259,22 +290,25 @@ public class Run extends ApplicationFrame {
         final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
         final DefaultCategoryDataset dataset2 = new DefaultCategoryDataset( );
 
-        //testZeroSignals(measurements, dataset);
+        //testZeroSignals(measurementsFiltered, dataset);
         //test1(measurements, dataset);
         //testBleCoefficient(measurements, dataset);
         //testKnn(measurementsFiltered, dataset);
-        //testBleCoefficientK2(measurementsFiltered, dataset);
-        //testWknn(measurementsFiltered, dataset);
+        //testBleCoefficientK4(measurementsFiltered, dataset);
+        testWknn(measurementsFiltered, dataset);
         //testFilterOutliers(measurementsFiltered, dataset);
         //testScanTrainAndTestDuration(measurementsFiltered, dataset);
+        //testScanTestDuration(measurementsFiltered, dataset);
+        //analyzeSingleMeasurement(measurementsFiltered, "34b3a413-4f3d-48ac-ba39-38a51cc8ad7a");
+        //dumpSingleMeasurementXY(measurementsFiltered, 1700, 750);
 
         System.out.println(measurementsFiltered.size());
 
         // paper
-        //testPaperWknn(measurementsFiltered, dataset);
+        //testPaperWknn(measurementsFiltered, dataset, false);
         //testNumberOfTransmitters1(measurementsFiltered, dataset);
         //testNumberOfTransmitters(measurementsFiltered, dataset);
-        testPaperEvenOddBle(measurementsFiltered, dataset);
+        //testPaperEvenOddBle(measurementsFiltered, dataset);
         //drawPaperBeacons(br.getBeacons());
 
         //drawMeasurements(measurementsFiltered);
@@ -285,14 +319,149 @@ public class Run extends ApplicationFrame {
         //drawTopWifiTransmittersOnePerFile(measurementsFiltered);
         //drawTopBleTransmittersOnePerFile(measurementsFiltered);
 
-        Run me = new Run("Results", dataset);
+        //testMedianAdvertisingInterval(measurementsFiltered);
+
+        Run me = new Run("Results " + new Date(), dataset);
         //Run me = new Run("Results", dataset2);
 
         //generateDataForGnuplot(measurementsFiltered);
 
+        logger.info("Finished");
+
         me.pack();
         RefineryUtilities.centerFrameOnScreen(me);
         me.setVisible(true);
+    }
+
+    private static void dumpSingleMeasurementXY(List<Measurement> measurements, int x, int y) {
+        Measurement unknown = null;
+        for (Measurement me : measurements) {
+            if (me.getX() == x && me.getY() == y) {
+                logger.info("Mesurement id={} x={} y={} bleScan={}", me.getId(), me.getX(), me.getY(), me.getReducedBleScans());
+            }
+        }
+
+    }
+
+    private static void testMedianAdvertisingInterval(List<Measurement> measurementsFiltered) {
+        // BLE beacons
+        Map<String,List<Integer>> scanIdToIntervals = new HashMap<>();
+        for (Measurement m : measurementsFiltered) {
+            Map<String,Integer> scanIdToLastTime = new HashMap<>();
+            // sort scans by time
+            List<BleScan> scans = new ArrayList<>(m.getBleScans());
+            Collections.sort(scans, (o1, o2) -> o1.getTime()-o2.getTime());
+            for (BleScan scan : scans) {
+                Integer previousTime = scanIdToLastTime.get(scan.getId());
+                if (previousTime == null) {
+                    // first occurence
+                    scanIdToLastTime.put(scan.getId(), scan.getTime());
+                } else {
+                    // second or more occurence
+                    // calc difference
+                    int diff = scan.getTime() - previousTime;
+                    // put to list of intervals
+                    List<Integer> listOfIntervals = scanIdToIntervals.get(scan.getId());
+                    if (listOfIntervals == null) {
+                        listOfIntervals = new ArrayList<Integer>();
+                        scanIdToIntervals.put(scan.getId(), listOfIntervals);
+                    }
+                    listOfIntervals.add(diff);
+                    // store new occurence time
+                    scanIdToLastTime.put(scan.getId(), scan.getTime());
+                }
+            }
+        }
+        // calculate median for each MAC (id)
+        for (String id : scanIdToIntervals.keySet()) {
+            List<Integer> listOfIntervals = scanIdToIntervals.get(id);
+            Collections.sort(listOfIntervals);
+            System.out.println("mac=" + id + " interval=" + (listOfIntervals.get(listOfIntervals.size()/2)) + " j3np=" + beaconsJ3NP.contains(beaconMacToId.get(id)) + " num=" + beaconMacToId.get(id) + " count=" + listOfIntervals.size());
+        }
+    }
+
+    private static void analyzeSingleMeasurement(List<Measurement> measurements, String id) {
+        // SWITCH TO DEBUG LOG LEVEL IN ORDER TO SEE ALL DATA
+        Predicate<TransmitterSignal> msFilter = s -> {
+            //return s.getTime() <= 5000;
+            return true;
+        };
+        Predicate<TransmitterSignal> bothFilter = defaultTxFilter.and(msFilter);
+
+        PositionEstimator wifiEstimator = new WKNNPositionEstimator((measurement1, measurement2) -> {
+            return ssc.calcDistance(measurement1.getReducedWifiScans(bothFilter), measurement2.getReducedWifiScans(bothFilter));
+        }, k);
+
+        PositionEstimator bleEstimator = new WKNNPositionEstimator((measurement1, measurement2) -> {
+            return ssc.calcDistance(measurement1.getReducedBleScans(bothFilter), measurement2.getReducedBleScans(bothFilter));
+        }, k);
+
+        double bleCoef = 0;
+        PositionEstimator combinedEstimator = new WKNNPositionEstimator((measurement1, measurement2) -> {
+            return ssc.calcDistance(measurement1.getReducedCombinedScans(bothFilter, bleCoef), measurement2.getReducedCombinedScans(bothFilter, bleCoef));
+        }, k);
+
+        Measurement unknown = null;
+        for (Measurement me : measurements) {
+            if (me.getId().equals(id)) {
+                unknown = me;
+            }
+        }
+
+        if (unknown == null) {
+            throw new RuntimeException("ID not found " + id);
+        }
+
+        logger.info("myBleScans={} x={} y={}", unknown.getReducedBleScans(), unknown.getX(), unknown.getY());
+
+        List<Measurement> calibratedList = new ArrayList<>();
+        // make the copy of the original measurement list without the left-out ("unknown") measurement
+        calibratedList.addAll(measurements);
+        calibratedList.remove(unknown);
+        // estimate  position using provided estimator
+        //estimateSingle(wifiEstimator, calibratedList, unknown);
+        estimateSingle(bleEstimator, calibratedList, unknown);
+        //estimateSingle(combinedEstimator, calibratedList, unknown);
+
+    }
+
+    private static void estimateSingle(PositionEstimator estimator, List<Measurement> calibratedList, Measurement unknown) {
+        Position estimatedPosition = estimator.estimatePosition(calibratedList, unknown);
+        if (estimatedPosition != null) {
+            // position was successfully estimated
+            // calculate real distance in meters
+            double pixelError = Math.sqrt(Math.pow(estimatedPosition.getX() - unknown.getX(), 2) + Math.pow(estimatedPosition.getY() - unknown.getY(), 2));
+            double metersError = pixelError * floorPixelsToMeters;
+            if (!estimatedPosition.getFloor().equals(unknown.getLevel())) {
+                logger.warn("Wrong building/floor estimated: estimated={} actual={} id={}", estimatedPosition.getFloor(), unknown.getLevel(), unknown.getId());
+            }
+            System.out.println("X=" + unknown.getX() + " Y=" + unknown.getY() + " estX=" +estimatedPosition.getX()+ "estY=" +estimatedPosition.getY()+ " Error[m] = " + metersError);
+        } else {
+            // ignore this one leaved-out when estimation was not successful
+            logger.warn("Unable to estimate position of id={} #wifi={} #ble={}", unknown.getId(), unknown.getReducedWifiScans(defaultTxFilter).size(), unknown.getReducedBleScans(defaultTxFilter).size());
+        }
+    }
+
+    private static List<Measurement> compactGridPoints(Collection<Measurement> measurements) {
+        // group measurements by the grid point (all measurements in one Position goes into one group)
+        HashMap<Position, Measurement> groups = new HashMap<>();
+        // fill groups and aggregate data within groups
+        for (Measurement m : measurements) {
+            if (groups.containsKey(m.getPosition())) {
+                // aggregated measurement already exists, add data
+                Measurement agg = groups.get(m.getPosition());
+                agg.addScansFromAnotherMeasurement(m);
+            } else {
+                // no aggregated measurement yet, add this one
+                Measurement newM = new Measurement();
+                newM.addScansFromAnotherMeasurement(m);
+                newM.setPosition(m.getPosition());
+                groups.put(m.getPosition(), newM);
+            }
+        }
+        // return aggregated measurements ("groups")
+        System.out.println("compactGridPoints " + measurements.size() + " into " + groups.size());
+        return new ArrayList(groups.values());
     }
 
     private static void drawPaperBeacons(List<BeaconsRepo.BeaconRec> beacons) {
@@ -362,7 +531,7 @@ public class Run extends ApplicationFrame {
         dataset1.saveColumns("out/data-testNumberOfTransmitters1-", ".csv");
 
         final MyBoxAndWhiskerCategoryDataset dataset2 = new MyBoxAndWhiskerCategoryDataset();
-        testPaperWknn(measurementsFiltered, dataset2);
+        testPaperWknn(measurementsFiltered, dataset2, false);
         dataset2.saveColumns("out/data-testWKNN-", ".csv");
 
         final MyBoxAndWhiskerCategoryDataset dataset3 = new MyBoxAndWhiskerCategoryDataset();
@@ -378,6 +547,7 @@ public class Run extends ApplicationFrame {
 
     private static void drawMeasurements(List<Measurement> measurements) {
         try {
+            //BufferedImage img = ImageIO.read(new File("img/Krizovi-light.png"));
             BufferedImage img = ImageIO.read(new File("img/J3NP.png"));
             int radius = 10;
             Graphics g = img.getGraphics();
@@ -402,10 +572,9 @@ public class Run extends ApplicationFrame {
             BufferedImage img = ImageIO.read(new File("img/J3NP.png"));
             int radius = 10;
             Graphics g = img.getGraphics();
-            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
             List<EstimatedPosition> estimates = crossValidateWithPositions(measurements,  new WKNNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-            }, 2));
+                return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
+            }, 4));
             Collections.reverse(estimates);
             // top 10 worst
             for (int i = 0; i < 10; i++) {
@@ -422,6 +591,7 @@ public class Run extends ApplicationFrame {
                 g.fillOval((int)(e.getX() - radius), (int)(e.getY() - radius), 2 * radius, 2 * radius);
                 g.setColor(new Color(1f, 0f, 0f, 1f));
                 g.drawString(i + "", (int)(e.getX() + radius), (int) (e.getY()-radius/2));
+                System.out.println(m.getId() + " " + i);
             }
             ImageIO.write(img, "PNG", new File("img/J3NP-worst2.png"));
         } catch (IOException e) {
@@ -691,56 +861,81 @@ public class Run extends ApplicationFrame {
     }
 
     private static void testScanTrainAndTestDuration(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
         for (int i = 1000; i <= 10000; i+=1000) {
             String tit = i/1000 + "";
             final int ms = i;
             Predicate<TransmitterSignal> msFilter = s -> {
                 return s.getTime() <= ms;
+                //if (s.getTime() >= ms) { logger.warn("Wrong time ms={}", s.getTime()); }
+                //return true;
             };
             Predicate<TransmitterSignal> bothFilter = defaultTxFilter.and(msFilter);
+
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedWifiScans(bothFilter), measurement2.getReducedWifiScans(bothFilter));
-            }, 2)), dataset, "WiFi", tit);
+            }, k)), dataset, "WiFi", tit);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedBleScans(bothFilter), measurement2.getReducedBleScans(bothFilter));
-            }, 2)), dataset, "BLE", tit);
+            }, k)), dataset, "BLE", tit);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedCombinedScans(bothFilter), measurement2.getReducedCombinedScans(bothFilter));
-            }, 2)), dataset, "Combined", tit);
+            }, k)), dataset, "Combined", tit);
 
         }
     }
 
+//    private static void testScanTestDuration(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
+//        for (int i = 1000; i <= 10000; i+=1000) {
+//            String tit = i/1000 + "";
+//            final int ms = i;
+//            Predicate<TransmitterSignal> msFilter = s -> {
+//                return s.getTime() <= ms;
+//            };
+//            Predicate<TransmitterSignal> bothFilter = defaultTxFilter.and(msFilter);
+//
+//            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((calibratedMeasurement, unknownMeasurement) -> {
+//                return ssc.calcDistance(calibratedMeasurement.getReducedWifiScans(bothFilter), unknownMeasurement.getReducedWifiScans(bothFilter));
+//            }, 4)), dataset, "WiFi", tit);
+//
+//            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((calibratedMeasurement, unknownMeasurement) -> {
+//                return ssc.calcDistance(calibratedMeasurement.getReducedBleScans(bothFilter), unknownMeasurement.getReducedBleScans(bothFilter));
+//            }, 4)), dataset, "BLE", tit);
+//
+//            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((calibratedMeasurement, unknownMeasurement) -> {
+//                return ssc.calcDistance(calibratedMeasurement.getReducedCombinedScans(bothFilter), unknownMeasurement.getReducedCombinedScans(bothFilter));
+//            }, 4)), dataset, "Combined", tit);
+//
+//        }
+//    }
+
     private static void testFilterOutliers(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
-        for (int i = 0; i <= 100; i+=10) {
+        for (int pct = 0; pct <= 50; pct+=10) {
+            int i = pct*measurements.size()/100;
             List<Measurement> m2 = filterOutliersOut(measurements, i);
-            String tit = i + "";
+            String tit = pct + "% ("+i+")";
 
-            addMySeries(crossValidate(m2, new WKNNPositionEstimator((measurement1, measurement2) -> {
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
-            }, 2)), dataset, "WiFi", tit);
+            }, k), false, m2), dataset, "WiFi", tit);
 
-            addMySeries(crossValidate(m2, new WKNNPositionEstimator((measurement1, measurement2) -> {
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
-            }, 2)), dataset, "BLE", tit);
+            }, k), false, m2), dataset, "BLE", tit);
 
-            addMySeries(crossValidate(m2, new WKNNPositionEstimator((measurement1, measurement2) -> {
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-            }, 2)), dataset, "Combined", tit);
+            }, k), false, m2), dataset, "Combined", tit);
 
         }
     }
 
     private static List<Measurement> filterOutliersOut(List<Measurement> measurements, int howMuch) {
-        SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
         // find all estimate errors
         List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-        }, 2));
+        }, k));
         Collections.sort(errors);
         logger.info("filterOutliersOut max={} id={}", errors.get(errors.size() - 1).getNumber(), errors.get(errors.size() - 1).getLabel());
         // remove top 'howMuch' measurements that are estimated with the worst error (outliers)
@@ -762,44 +957,43 @@ public class Run extends ApplicationFrame {
 
     private static void test1(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
         double zeroSignal = -105;
-        SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(zeroSignal);
+        SignalSpaceDistanceCalculator mySsc = new SignalSpaceDistanceCalculator(zeroSignal);
         String zeroSignalTitle = zeroSignal + "";
 
         addMySeries(crossValidate(measurements, new NNPositionEstimator((measurement1, measurement2) -> {
-            return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
+            return mySsc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
         })), dataset, "WiFi", zeroSignalTitle);
 
         addMySeries(crossValidate(measurements, new NNPositionEstimator((measurement1, measurement2) -> {
-            return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
+            return mySsc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
         })), dataset, "BLE", zeroSignalTitle);
 
         addMySeries(crossValidate(measurements, new NNPositionEstimator((measurement1, measurement2) -> {
-            return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+            return mySsc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
         })), dataset, "Combined", zeroSignalTitle);
     }
 
     private static void testZeroSignals(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        for (double zeroSignal = -95; zeroSignal > -110; zeroSignal-=2) {
-            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(zeroSignal);
+        for (double zeroSignal = -90; zeroSignal > -115; zeroSignal-=2) {
+            SignalSpaceDistanceCalculator mySsc = new SignalSpaceDistanceCalculator(zeroSignal);
             String zeroSignalTitle = zeroSignal + "";
 
-            addMySeries(crossValidate(measurements, new NNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
-            })), dataset, "WiFi", zeroSignalTitle);
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return mySsc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
+            }, k)), dataset, "WiFi", zeroSignalTitle);
 
-            addMySeries(crossValidate(measurements, new NNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
-            })), dataset, "BLE", zeroSignalTitle);
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return mySsc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
+            }, k)), dataset, "BLE", zeroSignalTitle);
 
-            addMySeries(crossValidate(measurements, new NNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-            })), dataset, "Combined", zeroSignalTitle);
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return mySsc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+            }, k)), dataset, "Combined", zeroSignalTitle);
         }
     }
 
     private static void testKnn(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
         for (int k = 1; k < 5; k++) {
-            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
             String kTitle = k + "";
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
@@ -830,7 +1024,7 @@ public class Run extends ApplicationFrame {
             }, k, false)), dataset, "BLE", "KNN " + kTitle);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedCombinedScans(), measurement2.getReducedCombinedScans());
+                return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
             }, k, false)), dataset, "Combined", "KNN " + kTitle);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
@@ -847,22 +1041,20 @@ public class Run extends ApplicationFrame {
         }
     }
 
-    private static void testPaperWknn(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        int k = 2;
-        SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
+    private static void testPaperWknn(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset, boolean gridAggregate) {
         String kTitle = k + "";
 
         addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
-        }, k)), dataset, "WiFi", "WKNN");
+        }, k), gridAggregate), dataset, "WiFi", "WKNN");
 
         addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
-        }, k)), dataset, "BLE", "WKNN");
+        }, k), gridAggregate), dataset, "BLE", "WKNN");
 
         addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-        }, k)), dataset, "Combined", "WKNN");
+        }, k), gridAggregate), dataset, "Combined", "WKNN");
 
 //        addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
 //            return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilterBleA), measurement2.getReducedBleScans(defaultTxFilterBleA));
@@ -882,8 +1074,6 @@ public class Run extends ApplicationFrame {
     }
 
     private static void testPaperEvenOddBle(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        int k = 2;
-        SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
         String kTitle = k + "";
 
         addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
@@ -925,7 +1115,6 @@ public class Run extends ApplicationFrame {
 
     private static void testBleCoefficient(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
         for (double coef = 0.2; coef <= 1.8; coef+=0.2) {
-            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
             String coefTitle = coef + "";
             final double bleCoef = coef;
 
@@ -935,15 +1124,20 @@ public class Run extends ApplicationFrame {
         }
     }
 
-    private static void testBleCoefficientK2(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
+    private static void testBleCoefficientWKNN(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
         for (double coef = 0.2; coef <= 1.8; coef+=0.2) {
-            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
             String coefTitle = coef + "";
             final double bleCoef = coef;
 
+//            Predicate<TransmitterSignal> msFilter = s -> {
+//                return s.getTime() <= 2000;
+//            };
+//            Predicate<TransmitterSignal> bothFilter = defaultTxFilter.and(msFilter);
+            Predicate<TransmitterSignal> bothFilter = defaultTxFilter;
+
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter, bleCoef), measurement2.getReducedCombinedScans(defaultTxFilter, bleCoef));
-            }, 2, false)), dataset, "Combined", coefTitle);
+                return ssc.calcDistance(measurement1.getReducedCombinedScans(bothFilter, bleCoef), measurement2.getReducedCombinedScans(bothFilter, bleCoef));
+            }, k, false)), dataset, "Combined", coefTitle);
         }
     }
 
