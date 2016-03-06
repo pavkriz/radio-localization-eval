@@ -31,4 +31,9 @@ public class WifiScan implements TransmitterSignal {
     public String getSsid() {
         return ssid;
     }
+
+    @Override
+    public void setTime(int time) {
+        this.time = time;
+    }
 }

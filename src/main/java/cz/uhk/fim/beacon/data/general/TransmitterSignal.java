@@ -8,4 +8,5 @@ public interface TransmitterSignal {
     double getSignalStrength();
     void setSignalStrength(double signalStrength);
     int getTime();
+    void setTime(int time);
 }

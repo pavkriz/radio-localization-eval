@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Created by Kriz on 16. 11. 2015.
@@ -26,6 +27,7 @@ public class Measurement {
     String level;   // building and floor
     String manufacturer;
     String createdAt; // e.g. "2015-11-13 13:28:24"
+    boolean trainingOnly; // do not use as "unknown" in evaluation, use only as a member of the training set
 
     public LocalDateTime getDateTime() {
         // convert to ISO date-time format and parse
@@ -52,12 +54,44 @@ public class Measurement {
         return y;
     }
 
+    public void setX(int x) {
+        this.x = x;
+    }
+
+    public void setY(int y) {
+        this.y = y;
+    }
+
     public String getLevel() {
         return level;
     }
 
+    public void setLevel(String level) {
+        this.level = level;
+    }
+
     public List<BleScan> getBleScans() {
         return bleScans;
+    }
+
+    public List<WifiScan> getWifiScans() {
+        return wifiScans;
+    }
+
+    public List<CellScan> getCellScans() {
+        return cellScans;
+    }
+
+    public void setBleScans(List<BleScan> bleScans) {
+        this.bleScans = bleScans;
+    }
+
+    public void setWifiScans(List<WifiScan> wifiScans) {
+        this.wifiScans = wifiScans;
+    }
+
+    public void setCellScans(List<CellScan> cellScans) {
+        this.cellScans = cellScans;
     }
 
     public Map<String, Double> getReducedBleScans(Predicate<TransmitterSignal> filterPredicate) {
@@ -142,5 +176,38 @@ public class Measurement {
         this.x = (int)position.getX();
         this.y = (int)position.getY();
         this.level = position.getFloor();
+    }
+
+    public boolean isTrainingOnly() {
+        return trainingOnly;
+    }
+
+    public void setTrainingOnly(boolean trainingOnly) {
+        this.trainingOnly = trainingOnly;
+    }
+
+    public  Measurement split(String idSuffix, int timeOffset, boolean trainingOnly, Predicate<TransmitterSignal> pre) {
+        Measurement newM = new Measurement();
+        newM.setId(this.getId()+idSuffix);
+        newM.setX(this.getX());
+        newM.setY(this.getY());
+        newM.setLevel(this.getLevel());
+
+        // first or second 10s
+        // recalculate signal times in the second half (15s -> 5s), if timeOffset != 0
+
+        newM.setBleScans(this.getBleScans().stream().filter(pre).collect(Collectors.toList()));
+        newM.getBleScans().forEach(s -> s.setTime(s.getTime() - timeOffset));
+
+        newM.setWifiScans(this.getWifiScans().stream().filter(pre).collect(Collectors.toList()));
+        newM.getWifiScans().forEach(s -> s.setTime(s.getTime() - timeOffset));
+
+        newM.setCellScans(this.getCellScans().stream().filter(pre).collect(Collectors.toList()));
+        newM.getCellScans().forEach(s -> s.setTime(s.getTime() - timeOffset));
+
+        // mark measurements as training-only (set true for second-half)
+        newM.setTrainingOnly(trainingOnly);
+
+        return newM;
     }
 }

@@ -44,8 +44,9 @@ public class WKNNPositionEstimator extends NNPositionEstimator {
                 }
                 double dist = nn.getDistance();
                 if (dist == 0) dist = 0.0001; // in order to be able to calculate weight of neighbour in distace=1
-                //double weight = weightedMode ? 1 / dist : 1;
-                double weight = weightedMode ? 1.0d / (6*i+1) : 1;
+                double weight = weightedMode ? 1 / dist : 1;
+                //double weight = weightedMode ? 1.0d / (i+1) : 1;
+                //if (weightedMode) weight = weight / (i+1);
                 weightsSum += weight;
                 // first part of centroid calculation
                 p.setX(p.getX() + weight * nn.getMeasurement().getPosition().getX());

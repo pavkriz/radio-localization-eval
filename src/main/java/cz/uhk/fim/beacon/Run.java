@@ -156,16 +156,18 @@ public class Run extends ApplicationFrame {
     }
 
     private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator, boolean gridAggregate) {
-        return crossValidate(measurements, estimator, gridAggregate, measurements);
+        return crossValidate(measurements, estimator, gridAggregate, measurements, false);
     }
 
     /**
      * Leave-one-out cross-validation
      */
-    private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator, boolean gridAggregate, List<Measurement> calibrated) {
+    private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator, boolean gridAggregate, List<Measurement> calibrated, boolean ignoreTrainingOnly) {
         List<NumberValue> listOfErrors = new ArrayList<>();
         // test by leaving one measurement out as the unknown one and the rest as the calibrated ones
-        measurements.parallelStream().forEach(unknown -> {
+        Stream<Measurement> stream = measurements.parallelStream();
+        if (!ignoreTrainingOnly) stream = stream.filter(m -> !m.isTrainingOnly());
+        stream.forEach(unknown -> {
             List<Measurement> calibratedList = new ArrayList<>();
             // make the copy of the original measurement list without the left-out ("unknown") measurement
             calibratedList.addAll(calibrated);
@@ -279,6 +281,7 @@ public class Run extends ApplicationFrame {
                 ).collect(Collectors.toList());
 
         //measurementsFiltered = compactGridPoints(measurementsFiltered);
+        measurementsFiltered = split20s(measurementsFiltered);
 
         for (Measurement m : measurementsFiltered) {
             if (m.getId().equals("29faa5a3-dff0-44b9-beed-351f1eaf7581")) {
@@ -295,9 +298,9 @@ public class Run extends ApplicationFrame {
         //testBleCoefficient(measurements, dataset);
         //testKnn(measurementsFiltered, dataset);
         //testBleCoefficientK4(measurementsFiltered, dataset);
-        testWknn(measurementsFiltered, dataset);
+        //testWknn(measurementsFiltered, dataset);
         //testFilterOutliers(measurementsFiltered, dataset);
-        //testScanTrainAndTestDuration(measurementsFiltered, dataset);
+        testScanTrainAndTestDuration(measurementsFiltered, dataset);
         //testScanTestDuration(measurementsFiltered, dataset);
         //analyzeSingleMeasurement(measurementsFiltered, "34b3a413-4f3d-48ac-ba39-38a51cc8ad7a");
         //dumpSingleMeasurementXY(measurementsFiltered, 1700, 750);
@@ -332,6 +335,20 @@ public class Run extends ApplicationFrame {
         RefineryUtilities.centerFrameOnScreen(me);
         me.setVisible(true);
     }
+
+    private static List<Measurement> split20s(List<Measurement> measurementsFiltered) {
+        List<Measurement> newMeasurements = new ArrayList<>();
+        for (Measurement m : measurementsFiltered) {
+            // split one measurement of 20s into 2 measurements of 10s
+            Measurement m1 = m.split("-split1", 0, false, s -> s.getTime() <= 10000);
+            Measurement m2 = m.split("-split2", 10000, true, s -> s.getTime() > 10000);
+            newMeasurements.add(m1);
+            newMeasurements.add(m2);
+        }
+        return newMeasurements;
+    }
+
+
 
     private static void dumpSingleMeasurementXY(List<Measurement> measurements, int x, int y) {
         Measurement unknown = null;
@@ -911,22 +928,22 @@ public class Run extends ApplicationFrame {
 //    }
 
     private static void testFilterOutliers(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        for (int pct = 0; pct <= 50; pct+=10) {
+        for (int pct = 0; pct <= 10; pct+=2) {
             int i = pct*measurements.size()/100;
             List<Measurement> m2 = filterOutliersOut(measurements, i);
             String tit = pct + "% ("+i+")";
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
-            }, k), false, m2), dataset, "WiFi", tit);
+            }, k), false, m2, false), dataset, "WiFi", tit);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
-            }, k), false, m2), dataset, "BLE", tit);
+            }, k), false, m2, false), dataset, "BLE", tit);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-            }, k), false, m2), dataset, "Combined", tit);
+            }, k), false, m2, false), dataset, "Combined", tit);
 
         }
     }
@@ -935,7 +952,7 @@ public class Run extends ApplicationFrame {
         // find all estimate errors
         List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-        }, k));
+        }, k), false, measurements, true);
         Collections.sort(errors);
         logger.info("filterOutliersOut max={} id={}", errors.get(errors.size() - 1).getNumber(), errors.get(errors.size() - 1).getLabel());
         // remove top 'howMuch' measurements that are estimated with the worst error (outliers)

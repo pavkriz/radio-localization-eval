@@ -26,4 +26,9 @@ public class BleScan implements TransmitterSignal {
     public int getTime() {
         return time;
     }
+
+    @Override
+    public void setTime(int time) {
+        this.time = time;
+    }
 }
