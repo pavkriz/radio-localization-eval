@@ -64,7 +64,7 @@ public class Run extends ApplicationFrame {
     static Map<String, String> beaconMacToId;
     static Set<String> beaconsJ3NP = new HashSet<String>(Arrays.asList("39", "48", "37", "36", "31", "41", "50", "40", "38", "30", "27", "47", "1", "3", "24", "8", "9"));
     static Set<String> beaconsJ3NPa = new HashSet<String>(Arrays.asList("39", "37", "31", "50", "38", "27"));
-    static Set<String> beaconsJ3NPb = new HashSet<String>(Arrays.asList("48", "36", "41", "40", "30", "47"));
+    static Set<String> beaconsJ3NPb = new HashSet<String>(Arrays.asList("39", "37", "31", "50", "38", "27", "48", "36", "41", "40", "30", "47"));
     static Set<String> beaconsJ3NPc = new HashSet<String>(Arrays.asList("36", "50", "30", "39"));
     static Set<String> beaconsKrizovi = new HashSet<String>(Arrays.asList("51", "52", "53", "54", "55"));
     static Predicate<TransmitterSignal> baseTxFilter = s -> {
@@ -296,11 +296,12 @@ public class Run extends ApplicationFrame {
         //testZeroSignals(measurementsFiltered, dataset);
         //test1(measurements, dataset);
         //testBleCoefficient(measurements, dataset);
+        //testBleCoefficientWKNN(measurementsFiltered, dataset);
         //testKnn(measurementsFiltered, dataset);
         //testBleCoefficientK4(measurementsFiltered, dataset);
         //testWknn(measurementsFiltered, dataset);
         //testFilterOutliers(measurementsFiltered, dataset);
-        testScanTrainAndTestDuration(measurementsFiltered, dataset);
+        //testScanTrainAndTestDuration(measurementsFiltered, dataset);
         //testScanTestDuration(measurementsFiltered, dataset);
         //analyzeSingleMeasurement(measurementsFiltered, "34b3a413-4f3d-48ac-ba39-38a51cc8ad7a");
         //dumpSingleMeasurementXY(measurementsFiltered, 1700, 750);
@@ -312,7 +313,8 @@ public class Run extends ApplicationFrame {
         //testNumberOfTransmitters1(measurementsFiltered, dataset);
         //testNumberOfTransmitters(measurementsFiltered, dataset);
         //testPaperEvenOddBle(measurementsFiltered, dataset);
-        //drawPaperBeacons(br.getBeacons());
+        drawPaperBeacons(br.getBeacons());
+        //showPaperNumberOfSignals(measurementsFiltered);
 
         //drawMeasurements(measurementsFiltered);
         //drawWorstEstimates(measurementsFiltered);
@@ -334,6 +336,16 @@ public class Run extends ApplicationFrame {
         me.pack();
         RefineryUtilities.centerFrameOnScreen(me);
         me.setVisible(true);
+    }
+
+    private static void showPaperNumberOfSignals(List<Measurement> measurementsFiltered) {
+        int sum = 0;
+        for (Measurement m : measurementsFiltered) {
+            sum = sum + m.getBleScans().size();
+            sum = sum + m.getWifiScans().size();
+        }
+        System.out.println("Total number measurementss: " + measurementsFiltered.size());
+        System.out.println("Total number of RSSIs: " + sum);
     }
 
     private static List<Measurement> split20s(List<Measurement> measurementsFiltered) {
@@ -494,11 +506,11 @@ public class Run extends ApplicationFrame {
             Color bleColor = cloneWithAlpha(Color.decode("#0072b2"), 60);
             for (BeaconsRepo.BeaconRec beacon : beacons) {
                 if ("J3NP".equals(beacon.floor)) {
-                    if (beacon.paper1Number <= 12) {
+                    //if (beacon.paper1Number <= 12) {
                         String s = String.valueOf(beacon.paper1Number);
                         if (s.length() == 1) s = "0" + s;
                         drawPaperCircle(g, bleColor, img.getWidth() - beacon.y, beacon.x, s);
-                    }
+                    //}
                 }
             }
             // WiFi
@@ -841,17 +853,17 @@ public class Run extends ApplicationFrame {
         }
         addMySeries(vals, dataset, "Combined", "B");
 
-        vals = new ArrayList<>();
-        for (Measurement m : measurements) {
-            vals.add(new NumberValue(m.getReducedBleScans(defaultTxFilterBleC).size(), m.getId()));
-        }
-        addMySeries(vals, dataset, "BLE", "C");
-
-        vals = new ArrayList<>();
-        for (Measurement m : measurements) {
-            vals.add(new NumberValue(m.getReducedCombinedScans(defaultTxFilterBleC).size(), m.getId()));
-        }
-        addMySeries(vals, dataset, "Combined", "C");
+//        vals = new ArrayList<>();
+//        for (Measurement m : measurements) {
+//            vals.add(new NumberValue(m.getReducedBleScans(defaultTxFilterBleC).size(), m.getId()));
+//        }
+//        addMySeries(vals, dataset, "BLE", "C");
+//
+//        vals = new ArrayList<>();
+//        for (Measurement m : measurements) {
+//            vals.add(new NumberValue(m.getReducedCombinedScans(defaultTxFilterBleC).size(), m.getId()));
+//        }
+//        addMySeries(vals, dataset, "Combined", "C");
     }
 
     private static void testNumberOfTransmitters1(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
@@ -888,14 +900,17 @@ public class Run extends ApplicationFrame {
             };
             Predicate<TransmitterSignal> bothFilter = defaultTxFilter.and(msFilter);
 
+            logger.info("WiFi i=" + i);
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedWifiScans(bothFilter), measurement2.getReducedWifiScans(bothFilter));
             }, k)), dataset, "WiFi", tit);
 
+            logger.info("BLE i=" + i);
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedBleScans(bothFilter), measurement2.getReducedBleScans(bothFilter));
             }, k)), dataset, "BLE", tit);
 
+            logger.info("Combined i=" + i);
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return ssc.calcDistance(measurement1.getReducedCombinedScans(bothFilter), measurement2.getReducedCombinedScans(bothFilter));
             }, k)), dataset, "Combined", tit);
