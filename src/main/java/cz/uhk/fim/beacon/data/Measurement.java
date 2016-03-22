@@ -14,6 +14,10 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
 /**
  * Created by Kriz on 16. 11. 2015.
  */
@@ -209,5 +213,66 @@ public class Measurement {
         newM.setTrainingOnly(trainingOnly);
 
         return newM;
+    }
+    
+    /**
+     * Parse Measurement from JSON string
+     * @param String json
+     * @return Measurement
+     */
+    public Measurement fromJson(String json) {
+    	Measurement measurement = new Measurement();
+    	try {	    	
+	    	JsonObject jsonObject = (JsonObject) new JsonParser().parse(json);    	
+	    	ArrayList<WifiScan> wifiRecords = new ArrayList<>();
+	    	ArrayList<BleScan> bluetoothRecords = new ArrayList<>();
+	    	
+	    	if (jsonObject.get("wifiScans") != null) { // Current data format  		
+		    	JsonArray jsonArray =(JsonArray) jsonObject.get("wifiScans");
+		    	for (int i = 0; i < jsonArray.size(); i++) {
+		    		JsonObject o = (JsonObject) jsonArray.get(i);
+		    		WifiScan wifiScan = new WifiScan();
+		    		wifiScan.setSsid(o.get("SSID").getAsString());
+		    		wifiScan.setMac(o.get("MAC").getAsString());
+		    		wifiScan.setSignalStrength(o.get("strength").getAsDouble());
+		    		wifiScan.setTime(o.get("time").getAsInt());  		
+		    		wifiRecords.add(wifiScan); 		
+		    	}	    		    	
+		    	jsonArray = (JsonArray) jsonObject.get("bleScans");
+		    	for (int i = 0; i < jsonArray.size(); i++) {
+		    		JsonObject o = (JsonObject) jsonArray.get(i);
+		    		BleScan bleScan = new BleScan();
+		    		bleScan.setSignalStrength(o.get("rssi").getAsDouble());
+		    		bleScan.setAddress(o.get("address").getAsString());
+		    		bleScan.setTime(o.get("time").getAsInt());
+		    		bluetoothRecords.add(bleScan);
+		    	}
+	    	} else { // Own data format
+		    	JsonArray jsonArray = (JsonArray) jsonObject.get("wirelessRecords");
+		    	for (int i = 0; i < jsonArray.size(); i++) {
+		    		JsonObject o = (JsonObject) jsonArray.get(i);
+		    		WifiScan wifiScan = new WifiScan();
+		    		wifiScan.setSsid(o.get("ssid").getAsString());
+		    		wifiScan.setMac(o.get("bssid").getAsString());
+		    		wifiScan.setSignalStrength(o.get("rssi").getAsDouble());
+		    		wifiScan.setTime(o.get("time").getAsInt());  		
+		    		wifiRecords.add(wifiScan); 		
+		    	}	    	
+		    	jsonArray = (JsonArray) jsonObject.get("bluetoothRecords");
+		    	for (int i = 0; i < jsonArray.size(); i++) {
+		    		JsonObject o = (JsonObject) jsonArray.get(i);
+		    		BleScan bleScan = new BleScan();		    		
+		    		bleScan.setAddress(o.get("bssid").getAsString());
+		    		bleScan.setSignalStrength(o.get("rssi").getAsDouble());
+		    		bleScan.setTime(o.get("time").getAsInt());
+		    		bluetoothRecords.add(bleScan);
+		    	}
+	    	}    		    	
+	    	measurement.bleScans = bluetoothRecords;
+	    	measurement.wifiScans = wifiRecords;
+    	} catch (Exception e) {
+    		e.printStackTrace();
+    	}
+    	return measurement; 
     }
 }

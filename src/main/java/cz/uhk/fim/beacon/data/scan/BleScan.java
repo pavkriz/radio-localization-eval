@@ -9,8 +9,12 @@ public class BleScan implements TransmitterSignal {
     String address;
     double rssi;
     int time; // ms
+    
+    public void setAddress(String address) {
+		this.address = address;
+	}
 
-    public String getId() {
+	public String getId() {
         return "BLE:"+address.toLowerCase();
     }
 

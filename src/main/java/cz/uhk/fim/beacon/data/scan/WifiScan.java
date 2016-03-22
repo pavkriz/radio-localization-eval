@@ -11,7 +11,15 @@ public class WifiScan implements TransmitterSignal {
     String ssid;
     int time; // ms;
 
-    public String getId() {
+    public void setMac(String mac) {
+		this.mac = mac;
+	}
+
+	public void setSsid(String ssid) {
+		this.ssid = ssid;
+	}
+
+	public String getId() {
         return "WIFI:"+mac.toLowerCase();
     }
 
