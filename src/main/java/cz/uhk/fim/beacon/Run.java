@@ -278,6 +278,7 @@ public class Run extends ApplicationFrame {
                                         //&& !"29faa5a3-dff0-44b9-beed-351f1eaf7581".equals(m.getId())
                                         //&& !"700047ed-fe12-4792-951b-ac98d893f1a4".equals(m.getId())
                                         //&& !"e494bf5c-2ffe-4bd7-b23d-ce05d7efd216".equals(m.getId())
+                                        && inReducedArea(m)
                 ).collect(Collectors.toList());
 
         //measurementsFiltered = compactGridPoints(measurementsFiltered);
@@ -313,10 +314,11 @@ public class Run extends ApplicationFrame {
         //testNumberOfTransmitters1(measurementsFiltered, dataset);
         //testNumberOfTransmitters(measurementsFiltered, dataset);
         //testPaperEvenOddBle(measurementsFiltered, dataset);
-        drawPaperBeacons(br.getBeacons());
+        //drawPaperBeacons(br.getBeacons());
         //showPaperNumberOfSignals(measurementsFiltered);
 
         //drawMeasurements(measurementsFiltered);
+        drawMeasurements2(measurementsFiltered,br.getBeacons());
         //drawWorstEstimates(measurementsFiltered);
         //testTransmittersTotal(measurementsFiltered, dataset2);
 
@@ -593,6 +595,107 @@ public class Run extends ApplicationFrame {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+    }
+
+    /**
+     * drawMeasurements - with "error-diameter" circles
+     * @param measurements
+     * @param beacons
+     */
+    private static void drawMeasurements2(List<Measurement> measurements, List<BeaconsRepo.BeaconRec> beacons) {
+        try {
+            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
+
+            //WKNN Combined, k = 3
+            List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+            }, 3));
+
+            errors.sort((e1,e2) -> (int)(e1.getNumber().doubleValue()-e2.getNumber().doubleValue()));
+
+            Map<String,Measurement> measurementMap = new TreeMap<>();
+            for(Measurement m : measurements) {
+                measurementMap.put(m.getId(),m);
+            }
+            BufferedImage img = ImageIO.read(new File("img/J3NP-notext-RGB.png"));
+            int radius = 10;
+            Graphics2D g = (Graphics2D) img.getGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION,RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+            for (NumberValue numberValue : errors) {
+
+                Measurement m = measurementMap.get(numberValue.getLabel());
+                if (numberValue!=null && m!=null) {
+                    double num = numberValue.getNumber().doubleValue();
+                    if (num > 3) {
+                        int rw = 255 - (int) Math.round(num  * 10);
+                        if (rw>255) rw=255;
+                        g.setColor(new Color(255, rw, rw, 80));
+                    } else g.setColor(new Color(0,255,0,80));
+                    radius = (int)(numberValue.getNumber().doubleValue() / floorPixelsToMeters / 2);
+                    g.fillOval(m.getX() - radius, m.getY() - radius, 2 * radius, 2 * radius);
+                    g.setColor(Color.BLACK);
+                    g.drawOval(m.getX() - radius, m.getY() - radius, 2 * radius, 2 * radius);
+                } else {//measurement not localized
+                    g.setColor(new Color(0,0,0,1));
+                    g.drawLine(m.getX()-10,m.getY()-10,m.getX()+10,m.getY()+10);
+                    g.drawLine(m.getX()+10,m.getY()-10,m.getX()-10,m.getY()+10);
+                }
+            }
+            drawBeaconsToImage(img,beacons);
+            ImageIO.write(img, "PNG", new File("img/J3NP-Circles-out.png"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+
+    /**
+     * Filter for corner situated measurements
+     * @param m
+     * @return
+     */
+    private static boolean inReducedArea(Measurement m) {
+        int x = m.getX();
+        int y = m.getY();
+
+        if (y<800 || y>=2100)
+            if (x<488 || x>1700) return false;
+
+        return true;
+    }
+
+    /**
+     * Draws beacons and Wifi AP positions to an existing image
+     * @param img
+     * @param beacons
+     */
+    private static void drawBeaconsToImage(BufferedImage img, List<BeaconsRepo.BeaconRec> beacons) {
+
+        Graphics2D g = (Graphics2D) img.getGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g.setFont(new Font("Arial", Font.PLAIN, 45));
+        BasicStroke stroke = new BasicStroke(2.0f);
+        g.setStroke(stroke);
+        Color bleColor = cloneWithAlpha(Color.decode("#0072b2"), 60);
+        for (BeaconsRepo.BeaconRec beacon : beacons) {
+            if ("J3NP".equals(beacon.floor)) {
+                //if (beacon.paper1Number <= 12) {
+                String s = String.valueOf(beacon.paper1Number);
+                if (s.length() == 1) s = "0" + s;
+                drawPaperCircle(g, bleColor, beacon.x, beacon.y, s);
+                //}
+            }
+        }
+        // WiFi
+        Color wifiColor = cloneWithAlpha(Color.decode("#e51e10"), 60);
+        drawPaperCircle(g, wifiColor, 426,1594, "W");
+        drawPaperCircle(g, wifiColor, 1176,741, "W");
+        drawPaperCircle(g, wifiColor, 1756, 1596, "W");
+        drawPaperCircle(g, wifiColor, 1226,2432, "W");
 
     }
 
