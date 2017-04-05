@@ -302,7 +302,9 @@ public class Run extends ApplicationFrame {
         //testBleCoefficientK4(measurementsFiltered, dataset);
         //testWknn(measurementsFiltered, dataset);
         //testFilterOutliers(measurementsFiltered, dataset);
+        //testFilterOutliers2(measurementsFiltered, dataset);
         //testScanTrainAndTestDuration(measurementsFiltered, dataset);
+        //testScanTrainAndTestDuration2(measurementsFiltered, dataset);
         //testScanTestDuration(measurementsFiltered, dataset);
         //analyzeSingleMeasurement(measurementsFiltered, "34b3a413-4f3d-48ac-ba39-38a51cc8ad7a");
         //dumpSingleMeasurementXY(measurementsFiltered, 1700, 750);
@@ -331,7 +333,7 @@ public class Run extends ApplicationFrame {
         Run me = new Run("Results " + new Date(), dataset);
         //Run me = new Run("Results", dataset2);
 
-        //generateDataForGnuplot(measurementsFiltered);
+        generateDataForGnuplot(measurementsFiltered);
 
         logger.info("Finished");
 
@@ -571,9 +573,16 @@ public class Run extends ApplicationFrame {
         dataset3.saveColumnCharacteristics("out/data-testScanInterval-BLE", ".csv", "BLE", 1, 10);
         dataset3.saveColumnCharacteristics("out/data-testScanInterval-Combined", ".csv", "Combined", 1, 10);
 
+
         final MyBoxAndWhiskerCategoryDataset dataset4 = new MyBoxAndWhiskerCategoryDataset();
         testPaperEvenOddBle(measurementsFiltered, dataset4);
         dataset4.saveColumns("out/data-testEvenOdd-", ".csv");
+
+        final MyBoxAndWhiskerCategoryDataset dataset5 = new MyBoxAndWhiskerCategoryDataset();
+        testScanTrainAndTestDuration2(measurementsFiltered, dataset5);
+        dataset5.saveColumnCharacteristics("out/data-testScanInterval2-WiFi", ".csv", "WiFi", 1, 6);
+        dataset5.saveColumnCharacteristics("out/data-testScanInterval2-BLE", ".csv", "BLE", 1, 6);
+        dataset5.saveColumnCharacteristics("out/data-testScanInterval2-Combined", ".csv", "Combined", 1, 6);
     }
 
     private static void drawMeasurements(List<Measurement> measurements) {
@@ -1021,6 +1030,36 @@ public class Run extends ApplicationFrame {
         }
     }
 
+    private static void testScanTrainAndTestDuration2(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
+        int offset = 4000;
+        for (int i = 1000; i <= 10000-offset; i+=1000) {
+            String tit = i/1000 + "";
+            final int ms = i;
+            Predicate<TransmitterSignal> msFilter = s -> {
+                return (s.getTime() <= ms + offset && s.getTime() > offset);
+                //if (s.getTime() >= ms) { logger.warn("Wrong time ms={}", s.getTime()); }
+                //return true;
+            };
+            Predicate<TransmitterSignal> bothFilter = defaultTxFilter.and(msFilter);
+
+            logger.info("WiFi i=" + i);
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return ssc.calcDistance(measurement1.getReducedWifiScans(bothFilter), measurement2.getReducedWifiScans(bothFilter));
+            }, k)), dataset, "WiFi", tit);
+
+            logger.info("BLE i=" + i);
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return ssc.calcDistance(measurement1.getReducedBleScans(bothFilter), measurement2.getReducedBleScans(bothFilter));
+            }, k)), dataset, "BLE", tit);
+
+            logger.info("Combined i=" + i);
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return ssc.calcDistance(measurement1.getReducedCombinedScans(bothFilter), measurement2.getReducedCombinedScans(bothFilter));
+            }, k)), dataset, "Combined", tit);
+
+        }
+    }
+
 //    private static void testScanTestDuration(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
 //        for (int i = 1000; i <= 10000; i+=1000) {
 //            String tit = i/1000 + "";
@@ -1046,30 +1085,42 @@ public class Run extends ApplicationFrame {
 //    }
 
     private static void testFilterOutliers(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        for (int pct = 0; pct <= 10; pct+=2) {
+        testFilterOutliersBase(measurements, dataset, defaultTxFilter);
+    }
+
+    private static void testFilterOutliers2(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
+        //int testingSimulateDurationMs = 2000;
+        Predicate<TransmitterSignal> testingTxFilter = defaultTxFilter.and(s -> {
+            return ((s.getTime() <= 5000) && (s.getTime() > 3000)); // when measurement is considered to be a testing (unknown) one, simulate only testingSimulateDurationMs milliseconds measurement
+        });
+        testFilterOutliersBase(measurements, dataset, testingTxFilter);
+    }
+
+    private static void testFilterOutliersBase(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset, Predicate<TransmitterSignal> testingTxFilter) {
+        for (int pct = 0; pct <= 50; pct+=10) {
             int i = pct*measurements.size()/100;
-            List<Measurement> m2 = filterOutliersOut(measurements, i);
+            List<Measurement> m2 = filterOutliersOut(measurements, i, testingTxFilter);
             String tit = pct + "% ("+i+")";
 
-            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((calibrated, unknown) -> {
+                return ssc.calcDistance(calibrated.getReducedWifiScans(defaultTxFilter), unknown.getReducedWifiScans(testingTxFilter));
             }, k), false, m2, false), dataset, "WiFi", tit);
 
-            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((calibrated, unknown) -> {
+                return ssc.calcDistance(calibrated.getReducedBleScans(defaultTxFilter), unknown.getReducedBleScans(testingTxFilter));
             }, k), false, m2, false), dataset, "BLE", tit);
 
-            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+            addMySeries(crossValidate(measurements, new WKNNPositionEstimator((calibrated, unknown) -> {
+                return ssc.calcDistance(calibrated.getReducedCombinedScans(defaultTxFilter), unknown.getReducedCombinedScans(testingTxFilter));
             }, k), false, m2, false), dataset, "Combined", tit);
 
         }
     }
 
-    private static List<Measurement> filterOutliersOut(List<Measurement> measurements, int howMuch) {
+    private static List<Measurement> filterOutliersOut(List<Measurement> measurements, int howMuch, Predicate<TransmitterSignal> testingTxFilter) {
         // find all estimate errors
-        List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-            return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+        List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((calibrated, unknown) -> {
+            return ssc.calcDistance(calibrated.getReducedCombinedScans(defaultTxFilter), unknown.getReducedCombinedScans(testingTxFilter));
         }, k), false, measurements, true);
         Collections.sort(errors);
         logger.info("filterOutliersOut max={} id={}", errors.get(errors.size() - 1).getNumber(), errors.get(errors.size() - 1).getLabel());
