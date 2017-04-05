@@ -278,11 +278,11 @@ public class Run extends ApplicationFrame {
                                         //&& !"29faa5a3-dff0-44b9-beed-351f1eaf7581".equals(m.getId())
                                         //&& !"700047ed-fe12-4792-951b-ac98d893f1a4".equals(m.getId())
                                         //&& !"e494bf5c-2ffe-4bd7-b23d-ce05d7efd216".equals(m.getId())
-                                        && inReducedArea(m)
+                                        //&& inReducedArea(m)
                 ).collect(Collectors.toList());
 
         //measurementsFiltered = compactGridPoints(measurementsFiltered);
-        measurementsFiltered = split20s(measurementsFiltered);
+        //measurementsFiltered = split20s(measurementsFiltered);
 
         for (Measurement m : measurementsFiltered) {
             if (m.getId().equals("29faa5a3-dff0-44b9-beed-351f1eaf7581")) {
@@ -312,7 +312,7 @@ public class Run extends ApplicationFrame {
         System.out.println(measurementsFiltered.size());
 
         // paper
-        //testPaperWknn(measurementsFiltered, dataset, false);
+        testPaperWknn(measurementsFiltered, dataset, false);
         //testNumberOfTransmitters1(measurementsFiltered, dataset);
         //testNumberOfTransmitters(measurementsFiltered, dataset);
         //testPaperEvenOddBle(measurementsFiltered, dataset);
@@ -320,7 +320,7 @@ public class Run extends ApplicationFrame {
         //showPaperNumberOfSignals(measurementsFiltered);
 
         //drawMeasurements(measurementsFiltered);
-        drawMeasurements2(measurementsFiltered,br.getBeacons());
+        //drawMeasurements2(measurementsFiltered,br.getBeacons());
         //drawWorstEstimates(measurementsFiltered);
         //testTransmittersTotal(measurementsFiltered, dataset2);
 
@@ -333,7 +333,7 @@ public class Run extends ApplicationFrame {
         Run me = new Run("Results " + new Date(), dataset);
         //Run me = new Run("Results", dataset2);
 
-        generateDataForGnuplot(measurementsFiltered);
+        //generateDataForGnuplot(measurementsFiltered);
 
         logger.info("Finished");
 
