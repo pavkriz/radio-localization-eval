@@ -312,11 +312,11 @@ public class Run extends ApplicationFrame {
         System.out.println(measurementsFiltered.size());
 
         // paper
-        testPaperWknn(measurementsFiltered, dataset, false);
+        //testPaperWknn(measurementsFiltered, dataset, false);
         //testNumberOfTransmitters1(measurementsFiltered, dataset);
         //testNumberOfTransmitters(measurementsFiltered, dataset);
         //testPaperEvenOddBle(measurementsFiltered, dataset);
-        //drawPaperBeacons(br.getBeacons());
+        drawPaperBeacons(br.getBeacons());
         //showPaperNumberOfSignals(measurementsFiltered);
 
         //drawMeasurements(measurementsFiltered);
@@ -518,11 +518,24 @@ public class Run extends ApplicationFrame {
                 }
             }
             // WiFi
-            Color wifiColor = cloneWithAlpha(Color.decode("#e51e10"), 60);
+            Color wifiColor = cloneWithAlpha(Color.decode("#19e510"), 60);
             drawPaperCircle(g, wifiColor, img.getWidth() - 1594, 426, "W");
             drawPaperCircle(g, wifiColor, img.getWidth() - 741, 1176, "W");
             drawPaperCircle(g, wifiColor, img.getWidth() - 1596, 1756, "W");
             drawPaperCircle(g, wifiColor, img.getWidth() - 2432, 1226, "W");
+
+            int testPointYOffset = -397;
+
+            drawPaperPoint(g, img.getWidth() - 750, 850 + testPointYOffset, "A");
+            drawPaperPoint(g, img.getWidth() - 1600,850 + testPointYOffset, "B");
+            drawPaperPoint(g, img.getWidth() - 2450, 850 + testPointYOffset, "C");
+            drawPaperPoint(g, img.getWidth() - 750, 1500 + testPointYOffset, "D");
+            drawPaperPoint(g, img.getWidth() - 1600, 1500 + testPointYOffset, "E");
+            drawPaperPoint(g, img.getWidth() - 2450, 1500 + testPointYOffset, "F");
+            drawPaperPoint(g, img.getWidth() - 750, 2150 + testPointYOffset, "G");
+            drawPaperPoint(g, img.getWidth() - 1600, 2150 + testPointYOffset, "H");
+            drawPaperPoint(g, img.getWidth() - 2450, 2150 + testPointYOffset, "I");
+
             // measure
             int measureX = 2230;
             int measureY = 2150;
@@ -552,6 +565,20 @@ public class Run extends ApplicationFrame {
         g.drawOval(x - radius, y - radius, 2 * radius, 2 * radius);
         int width = g.getFontMetrics().stringWidth(txt);
         g.drawString(txt, x - width/2, y + (int)(0.45*g.getFontMetrics().getAscent()) );
+    }
+
+    private static void drawPaperPoint(Graphics2D g, int x, int y, String txt) {
+        int width = g.getFontMetrics().stringWidth(txt);
+        int radius = 10;
+        int radiusGlow = 16;
+        int radius2 = 24;
+        g.setColor(new Color(1f, 1f, 1f, .7f));
+        g.fillOval(x - radiusGlow, y - radiusGlow, 2 * radiusGlow, 2 * radiusGlow);
+        g.fillOval(x - radius2 - 50, y - radius2, 2 * radius2, 2 * radius2);
+        g.setColor(Color.black);
+        g.fillOval(x - radius, y - radius, 2 * radius, 2 * radius);
+        g.setColor(Color.black);
+        g.drawString(txt, x -(int)(width + 30), y + 15);
     }
 
     private static Color cloneWithAlpha(Color orig, int alpha) {
