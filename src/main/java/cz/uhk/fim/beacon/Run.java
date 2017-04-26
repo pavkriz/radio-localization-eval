@@ -15,10 +15,7 @@ import cz.uhk.fim.beacon.estimator.PositionEstimator;
 import cz.uhk.fim.beacon.estimator.WKNNPositionEstimator;
 import cz.uhk.fim.beacon.graph.ExtendedBoxAndWhiskerRenderer;
 import cz.uhk.fim.beacon.graph.MyBoxAndWhiskerCategoryDataset;
-import cz.uhk.fim.beacon.ssdistance.MeasurementDistanceCalculator;
-import cz.uhk.fim.beacon.ssdistance.SSDistanceCalculator;
-import cz.uhk.fim.beacon.ssdistance.SignalSpaceDistanceCalculator;
-import cz.uhk.fim.beacon.ssdistance.SignalSpaceDistanceCalculator2;
+import cz.uhk.fim.beacon.ssdistance.*;
 import cz.uhk.fim.beacon.stats.NumberValue;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -57,8 +54,12 @@ public class Run extends ApplicationFrame {
     final static Logger logger = LoggerFactory.getLogger(Run.class);
     static double maxY = 0;
     static int k = 2;
-    static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
+    //static RssiToDistanceEstimator r2de = new PowRssiToDistanceEstimator(-62); // -62@1m = 0dBm txpower, estimote 1st gen
+    //static RssiToDistanceEstimator r2de = new EstRssiToDistanceEstimator(-62); // -62@1m = 0dBm txpower, estimote 1st gen
+    static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator4(-105);
+    //static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator5(-105, r2de);
     //static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator2();
+    //static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
     static double floorPixelsToMeters = 45.0/2250.0; // 45m = 2250 pixels // FIM J
     //static double floorPixelsToMeters = 6.56/315.0; // 45m = 2250 pixels // Krizovi
     static Map<String, String> beaconMacToId;
@@ -251,14 +252,14 @@ public class Run extends ApplicationFrame {
         BeaconsRepo br = new BeaconsRepo("beacons.json");
         beaconMacToId = br.getMacToBeaconId();
 
-        Properties prop = new Properties();
-        try {
-            prop.load(ClassLoader.getSystemResourceAsStream("config.properties"));
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("Copy config.properties.sample to config.properties and adjust according to your needs");
-            System.exit(1);
-        }
+//        Properties prop = new Properties();
+//        try {
+//            prop.load(ClassLoader.getSystemResourceAsStream("config.properties"));
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//            System.err.println("Copy config.properties.sample to config.properties and adjust according to your needs");
+//            System.exit(1);
+//        }
 
         DataProvider dp = new FileDataProvider("couchdump.json");
         //DataProvider dp = new WebDataProvider(prop.getProperty("dataprovider.url"), prop.getProperty("dataprovider.username"), prop.getProperty("dataprovider.password"));
@@ -278,7 +279,7 @@ public class Run extends ApplicationFrame {
                                         //&& !"29faa5a3-dff0-44b9-beed-351f1eaf7581".equals(m.getId())
                                         //&& !"700047ed-fe12-4792-951b-ac98d893f1a4".equals(m.getId())
                                         //&& !"e494bf5c-2ffe-4bd7-b23d-ce05d7efd216".equals(m.getId())
-                                        && inReducedArea(m)
+                                        //&& inReducedArea(m)
                 ).collect(Collectors.toList());
 
         //measurementsFiltered = compactGridPoints(measurementsFiltered);
@@ -294,7 +295,7 @@ public class Run extends ApplicationFrame {
         final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
         final DefaultCategoryDataset dataset2 = new DefaultCategoryDataset( );
 
-        //testZeroSignals(measurementsFiltered, dataset);
+        testZeroSignals(measurementsFiltered, dataset);
         //test1(measurements, dataset);
         //testBleCoefficient(measurements, dataset);
         //testBleCoefficientWKNN(measurementsFiltered, dataset);
@@ -320,7 +321,7 @@ public class Run extends ApplicationFrame {
         //showPaperNumberOfSignals(measurementsFiltered);
 
         //drawMeasurements(measurementsFiltered);
-        drawMeasurements2(measurementsFiltered,br.getBeacons());
+        //drawMeasurements2(measurementsFiltered,br.getBeacons());
         //drawWorstEstimates(measurementsFiltered);
         //testTransmittersTotal(measurementsFiltered, dataset2);
 
@@ -1160,21 +1161,22 @@ public class Run extends ApplicationFrame {
     }
 
     private static void testZeroSignals(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        for (double zeroSignal = -90; zeroSignal > -115; zeroSignal-=2) {
-            SignalSpaceDistanceCalculator mySsc = new SignalSpaceDistanceCalculator(zeroSignal);
+        for (double zeroSignal = -90; zeroSignal > -140; zeroSignal-=5) {
+            //SignalSpaceDistanceCalculator mySsc = new SignalSpaceDistanceCalculator(zeroSignal);
+            SSDistanceCalculator mySsc = new SignalSpaceDistanceCalculator4(zeroSignal);
             String zeroSignalTitle = zeroSignal + "";
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return mySsc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
-            }, k)), dataset, "WiFi", zeroSignalTitle);
+            }, 1)), dataset, "WiFi", zeroSignalTitle);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return mySsc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
-            }, k)), dataset, "BLE", zeroSignalTitle);
+            }, 1)), dataset, "BLE", zeroSignalTitle);
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
                 return mySsc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-            }, k)), dataset, "Combined", zeroSignalTitle);
+            }, 1)), dataset, "Combined", zeroSignalTitle);
         }
     }
 
@@ -1198,7 +1200,7 @@ public class Run extends ApplicationFrame {
 
     private static void testWknn(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
         for (int k = 1; k <= 5; k++) {
-            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
+            //SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
             String kTitle = k + "";
 
             addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {

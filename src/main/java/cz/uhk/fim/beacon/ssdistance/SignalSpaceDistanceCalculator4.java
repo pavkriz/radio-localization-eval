@@ -7,14 +7,14 @@ import java.util.Map;
 /**
  * Uses all transmitters from both measurements.
  * Put "zero" values instead of transmitters that appear only in the other measurement.
- * Euclidean distance.
+ * Manhattan distance.
  *
  * Created by Kriz on 16. 11. 2015.
  */
-public class SignalSpaceDistanceCalculator implements SSDistanceCalculator {
+public class SignalSpaceDistanceCalculator4 implements SSDistanceCalculator {
     public final double zeroSignal; // dB
 
-    public SignalSpaceDistanceCalculator(double zeroSignal) {
+    public SignalSpaceDistanceCalculator4(double zeroSignal) {
         this.zeroSignal = zeroSignal;
     }
 
@@ -37,13 +37,13 @@ public class SignalSpaceDistanceCalculator implements SSDistanceCalculator {
             if (!signals1.containsKey(id)) signals1.put(id, zeroSignal);
         });
         // now both maps should contain the same keys
-        double distanceSquareSum = 0;
+        double distance = 0;
         for (String id : signals1.keySet()) {
             double signalStrength1 = signals1.get(id);
             double signalStrength2 = signals2.get(id);
-            distanceSquareSum += Math.pow(signalStrength1-signalStrength2, 2);
+            distance += Math.abs(signalStrength1-signalStrength2);
         }
         //System.out.println("distanceSquareSum="+distanceSquareSum);
-        return Math.sqrt(distanceSquareSum);
+        return distance;
     }
 }

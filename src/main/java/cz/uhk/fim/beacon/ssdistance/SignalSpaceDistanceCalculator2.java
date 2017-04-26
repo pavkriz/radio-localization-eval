@@ -3,6 +3,9 @@ package cz.uhk.fim.beacon.ssdistance;
 import java.util.*;
 
 /**
+ * Uses only transmitters that appear at both measurements.
+ * Euclidean distance.
+ *
  * Created by Kriz on 16. 11. 2015.
  */
 public class SignalSpaceDistanceCalculator2 implements SSDistanceCalculator {
