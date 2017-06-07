@@ -36,6 +36,7 @@ public class WKNNPositionEstimator extends NNPositionEstimator {
         for (int i = 0; i < k; i++) {
             NearestNeighbour nn = getNearestNeighbour(tempCalibratedList, unknown);
             if (nn != null) {
+                logger.info('Nearest neighbour #{} id={}', (i+1), nn.getMeasurement().getId());
                 // valid neighbour found
                 if (p.getFloor() == null) {
                     // use floor from the first (nearest) neighbour

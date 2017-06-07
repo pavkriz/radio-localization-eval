@@ -41,10 +41,11 @@ public class LocationServlet extends HttpServlet {
 			DataProvider dataProvider = new FileDataProvider(chouchdumpFilePath);
 	        List<Measurement> measurements = dataProvider.getMeasurements();
 			Predicate<Measurement> defaultFilter = m ->
-				(m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-23") && m.getDateTime().isAfter(LocalDateTime.of(2016, 2, 23, 18, 15))) // Krizovi paralelne
-				||
-				m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-26") // J3NP  100ms Tx 0dbm
-			;
+//				(m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-23") && m.getDateTime().isAfter(LocalDateTime.of(2016, 2, 23, 18, 15))) // Krizovi paralelne
+//				||
+//				m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-26") // J3NP  100ms Tx 0dbm
+					true	// use all measurements in the database
+					;
 			if (request.getParameter("sandbox") == null) {
 				// we don't want sandbox
 				defaultFilter = defaultFilter.and(m -> !"Piskoviste".equals(m.getLevel()));
