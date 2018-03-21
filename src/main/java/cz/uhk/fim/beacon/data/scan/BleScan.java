@@ -1,20 +1,22 @@
 package cz.uhk.fim.beacon.data.scan;
 
+import com.google.gson.annotations.SerializedName;
 import cz.uhk.fim.beacon.data.general.TransmitterSignal;
 
 /**
  * Created by Kriz on 16. 11. 2015.
  */
 public class BleScan implements TransmitterSignal {
+    @SerializedName("bssid")
     String address;
     double rssi;
     int time; // ms
     
     public void setAddress(String address) {
-		this.address = address;
-	}
+        this.address = address;
+    }
 
-	public String getId() {
+    public String getId() {
         return "BLE:"+address.toLowerCase();
     }
 

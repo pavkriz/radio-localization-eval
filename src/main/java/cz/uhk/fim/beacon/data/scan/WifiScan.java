@@ -1,11 +1,13 @@
 package cz.uhk.fim.beacon.data.scan;
 
+import com.google.gson.annotations.SerializedName;
 import cz.uhk.fim.beacon.data.general.TransmitterSignal;
 
 /**
  * Created by Kriz on 16. 11. 2015.
  */
 public class WifiScan implements TransmitterSignal {
+    @SerializedName("bssid")
     String mac;
     double rssi;
     String ssid;
@@ -40,6 +42,14 @@ public class WifiScan implements TransmitterSignal {
         return ssid;
     }
 
+    
+    public void setTime(long time) {
+        if(time > 30000) {
+            time = 0;
+        }
+        this.time = (int) time;
+    }
+    
     @Override
     public void setTime(int time) {
         this.time = time;

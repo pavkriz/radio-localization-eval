@@ -55,8 +55,9 @@ import java.util.stream.Stream;
  */
 public class Run extends ApplicationFrame {
     final static Logger logger = LoggerFactory.getLogger(Run.class);
+    static int validateFailed = 0;
     static double maxY = 0;
-    static int k = 2;
+    static int k = 4;
     static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
     //static SSDistanceCalculator ssc = new SignalSpaceDistanceCalculator2();
     static double floorPixelsToMeters = 45.0/2250.0; // 45m = 2250 pixels // FIM J
@@ -68,7 +69,7 @@ public class Run extends ApplicationFrame {
     static Set<String> beaconsJ3NPc = new HashSet<String>(Arrays.asList("36", "50", "30", "39"));
     static Set<String> beaconsKrizovi = new HashSet<String>(Arrays.asList("51", "52", "53", "54", "55"));
     static Predicate<TransmitterSignal> baseTxFilter = s -> {
-        if (s.getTime() > 10000) return false;
+        if (s.getTime() > 30000) return false;
         if (s instanceof WifiScan) {
             WifiScan ws = (WifiScan)s;
             // only eduroam
@@ -189,7 +190,8 @@ public class Run extends ApplicationFrame {
                 //System.exit(0);
             } else {
                 // ignore this one leaved-out when estimation was not successful
-                logger.warn("Unable to estimate position of id={} #wifi={} #ble={}", unknown.getId(), unknown.getReducedWifiScans(defaultTxFilter).size(), unknown.getReducedBleScans(defaultTxFilter).size());
+                validateFailed++;
+                logger.warn("Unable to estimate position #{} of id={} #wifi={} #ble={}", validateFailed, unknown.getId(), unknown.getReducedWifiScans(defaultTxFilter).size(), unknown.getReducedBleScans(defaultTxFilter).size());
             }
         });
         Collections.sort(listOfErrors);
@@ -251,14 +253,14 @@ public class Run extends ApplicationFrame {
         BeaconsRepo br = new BeaconsRepo("beacons.json");
         beaconMacToId = br.getMacToBeaconId();
 
-        Properties prop = new Properties();
+        /*Properties prop = new Properties();
         try {
             prop.load(ClassLoader.getSystemResourceAsStream("config.properties"));
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println("Copy config.properties.sample to config.properties and adjust according to your needs");
             System.exit(1);
-        }
+        }*/
 
         DataProvider dp = new FileDataProvider("couchdump.json");
         //DataProvider dp = new WebDataProvider(prop.getProperty("dataprovider.url"), prop.getProperty("dataprovider.username"), prop.getProperty("dataprovider.password"));
@@ -271,24 +273,35 @@ public class Run extends ApplicationFrame {
                                         //&& (m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-23") && m.getDateTime().isBefore(LocalDateTime.of(2016, 2, 23, 18, 15))) // Krizovi pokus seriove
                                         //&& (m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-23") && m.getDateTime().isAfter(LocalDateTime.of(2016, 2, 23, 18, 15))) // Krizovi paralelne
                                         //&& (m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-22") || m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-24")) // J3NP  100ms
-                                        && m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-26") // J3NP  100ms Tx 0dbm
+                                        //&& m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE).equals("2016-02-26") // J3NP  100ms Tx 0dbm
                                         //&& "Sony".equals(m.getDeviceManufacturer())
                                         //&& "motorola".equals(m.getDeviceManufacturer()) // Nexus
                                         // reported to be wrong
                                         //&& !"29faa5a3-dff0-44b9-beed-351f1eaf7581".equals(m.getId())
                                         //&& !"700047ed-fe12-4792-951b-ac98d893f1a4".equals(m.getId())
                                         //&& !"e494bf5c-2ffe-4bd7-b23d-ce05d7efd216".equals(m.getId())
-                                        && inReducedArea(m)
+                                        //&& inReducedArea(m)
+                                        //&& isDeviceType(m, "phone")
+                                        && isDeviceType(m, "wear")
                 ).collect(Collectors.toList());
 
         //measurementsFiltered = compactGridPoints(measurementsFiltered);
-        measurementsFiltered = split20s(measurementsFiltered);
+        //measurementsFiltered = split20s(measurementsFiltered);
 
         for (Measurement m : measurementsFiltered) {
             if (m.getId().equals("29faa5a3-dff0-44b9-beed-351f1eaf7581")) {
                 System.out.println(m.getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE));
             }
         }
+        
+        /*for (Measurement m : measurementsFiltered) {
+            if (m.getId().equals("ea6cc03c-61f4-41b6-82ca-7011db1b7eba")) {
+                for(BleScan scan : m.getBleScans()) {
+                    System.out.println(scan.getId());
+                }
+            }
+        }*/
+        
         //System.out.println(measurementsFiltered.get(0).getDateTime().format(DateTimeFormatter.ISO_LOCAL_DATE));
 
         final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
@@ -304,21 +317,25 @@ public class Run extends ApplicationFrame {
         //testFilterOutliers(measurementsFiltered, dataset);
         //testScanTrainAndTestDuration(measurementsFiltered, dataset);
         //testScanTestDuration(measurementsFiltered, dataset);
-        //analyzeSingleMeasurement(measurementsFiltered, "34b3a413-4f3d-48ac-ba39-38a51cc8ad7a");
+        //analyzeSingleMeasurement(measurementsFiltered, "60ad5276-0f52-4a31-abec-1608e993d416");
+        //analyzeSingleMeasurement(measurementsFiltered, "6badc576-a4a1-4a5d-a7be-5b205faf3146");
         //dumpSingleMeasurementXY(measurementsFiltered, 1700, 750);
+        //findInactiveBeacons(measurementsFiltered, br.getBeacons(), beaconsJ3NP);
 
+        System.out.println(measurements.size());
         System.out.println(measurementsFiltered.size());
 
         // paper
-        //testPaperWknn(measurementsFiltered, dataset, false);
+        testPaperWknn(measurementsFiltered, dataset, false);
         //testNumberOfTransmitters1(measurementsFiltered, dataset);
         //testNumberOfTransmitters(measurementsFiltered, dataset);
         //testPaperEvenOddBle(measurementsFiltered, dataset);
         //drawPaperBeacons(br.getBeacons());
+        //drawPaperBeaconsRot90(br.getBeacons());
         //showPaperNumberOfSignals(measurementsFiltered);
 
         //drawMeasurements(measurementsFiltered);
-        drawMeasurements2(measurementsFiltered,br.getBeacons());
+        //drawMeasurements2(measurementsFiltered,br.getBeacons());
         //drawWorstEstimates(measurementsFiltered);
         //testTransmittersTotal(measurementsFiltered, dataset2);
 
@@ -361,8 +378,44 @@ public class Run extends ApplicationFrame {
         }
         return newMeasurements;
     }
-
-
+    
+    /**
+     * Finds inactive beacons in the measurements.
+     *
+     * @param measurements to look for beacons in
+     * @param beaconList list of all beacons from beacon.json
+     * @param beaconsSearched list of searched beacons
+     * @return Inactive beacons
+     */
+    private static Set<String> findInactiveBeacons(List<Measurement> measurements, 
+            List<BeaconsRepo.BeaconRec> beaconList, Set<String> beaconsSearched) {
+        Set<String> result = new HashSet<>(beaconsSearched);
+        String id = null;
+        
+        for (Measurement me : measurements) {       // Loop through measurements
+            for (BleScan scan : me.getBleScans()) { // Loop through measurement scans
+                // Check if there is beacon mac adress
+                if(scan.getId() != null) {
+                    id = beaconMacToId.get(scan.getId());                 
+                    if(result.contains(id))
+                        result.remove(id);  // Remove beacon from the list
+                }
+                
+                // Finish computing if list is empty
+                if(result.isEmpty()) {
+                    logger.info("All beacons found.");
+                    return result;
+                }
+            }
+        }
+        
+        if(!result.isEmpty()) {
+            result.forEach((bId) -> {
+                logger.info("Inactive beacon: id:{}, mac:{}", bId, beaconList.get(Integer.valueOf(bId)-1).mac);
+            });
+        }
+        return result;
+    }
 
     private static void dumpSingleMeasurementXY(List<Measurement> measurements, int x, int y) {
         Measurement unknown = null;
@@ -444,14 +497,15 @@ public class Run extends ApplicationFrame {
         }
 
         logger.info("myBleScans={} x={} y={}", unknown.getReducedBleScans(), unknown.getX(), unknown.getY());
+        logger.info("myWifiScans={} x={} y={}", unknown.getReducedWifiScans(), unknown.getX(), unknown.getY());
 
         List<Measurement> calibratedList = new ArrayList<>();
         // make the copy of the original measurement list without the left-out ("unknown") measurement
         calibratedList.addAll(measurements);
         calibratedList.remove(unknown);
         // estimate  position using provided estimator
-        //estimateSingle(wifiEstimator, calibratedList, unknown);
-        estimateSingle(bleEstimator, calibratedList, unknown);
+        estimateSingle(wifiEstimator, calibratedList, unknown);
+        //estimateSingle(bleEstimator, calibratedList, unknown);
         //estimateSingle(combinedEstimator, calibratedList, unknown);
 
     }
@@ -494,8 +548,55 @@ public class Run extends ApplicationFrame {
         System.out.println("compactGridPoints " + measurements.size() + " into " + groups.size());
         return new ArrayList(groups.values());
     }
-
+    
     private static void drawPaperBeacons(List<BeaconsRepo.BeaconRec> beacons) {
+        try {
+            BufferedImage img = ImageIO.read(new File("img/J3NP-notext.png"));
+            Graphics2D g = img.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.setFont(new Font("Arial", Font.PLAIN, 45));
+            BasicStroke stroke = new BasicStroke(2.0f);
+            g.setStroke(stroke);
+            Color bleColor = cloneWithAlpha(Color.decode("#0072b2"), 60);
+            for (BeaconsRepo.BeaconRec beacon : beacons) {
+                if ("J3NP".equals(beacon.floor)) {
+                    //if (beacon.paper1Number <= 12) {
+                        String s = String.valueOf(beacon.paper1Number);
+                        if (s.length() == 1) s = "0" + s;
+                        drawPaperCircle(g, bleColor, beacon.x, beacon.y, s);
+                    //}
+                }
+            }
+            // WiFi
+            Color wifiColor = cloneWithAlpha(Color.decode("#e51e10"), 60);
+            drawPaperCircle(g, wifiColor, 426, 1594, "W");
+            drawPaperCircle(g, wifiColor, 1176, 741, "W");
+            drawPaperCircle(g, wifiColor, 1756, 1596, "W");
+            drawPaperCircle(g, wifiColor, 1226, 2432, "W");
+            // measure
+            int measureX = 1665;
+            int measureY = 2805;
+            int measureHeight = 20;
+            int measureLength = (int)(10/floorPixelsToMeters);
+            BasicStroke measureStroke = new BasicStroke(2.0f);
+            g.setStroke(measureStroke);
+            g.drawLine(measureX, measureY, measureX + measureLength, measureY);
+            g.drawLine(measureX, measureY, measureX, measureY - measureHeight);
+            g.drawLine(measureX + measureLength, measureY, measureX + measureLength, measureY - measureHeight);
+            g.setFont(new Font("Arial", Font.PLAIN, 30));
+            g.drawString("10m", measureX - 80, measureY);
+            // crop
+            BufferedImage img2 = img.getSubimage(10, 145, 2175, 2675);
+            // write out
+            ImageIO.write(img2, "PNG", new File("img/J3NP-notext-out.png"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private static void drawPaperBeaconsRot90(List<BeaconsRepo.BeaconRec> beacons) {
         try {
             BufferedImage img = ImageIO.read(new File("img/J3NP-notext-rot90.png"));
             Graphics2D g = img.createGraphics();
@@ -536,7 +637,7 @@ public class Run extends ApplicationFrame {
             // crop
             BufferedImage img2 = img.getSubimage(215, 15, 2645, 2170);
             // write out
-            ImageIO.write(img2, "PNG", new File("img/J3NP-notext-out.png"));
+            ImageIO.write(img2, "PNG", new File("img/J3NP-notext-rot90-out.png"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -565,11 +666,11 @@ public class Run extends ApplicationFrame {
         testPaperWknn(measurementsFiltered, dataset2, false);
         dataset2.saveColumns("out/data-testWKNN-", ".csv");
 
-        final MyBoxAndWhiskerCategoryDataset dataset3 = new MyBoxAndWhiskerCategoryDataset();
-        testScanTrainAndTestDuration(measurementsFiltered, dataset3);
-        dataset3.saveColumnCharacteristics("out/data-testScanInterval-WiFi", ".csv", "WiFi", 1, 10);
-        dataset3.saveColumnCharacteristics("out/data-testScanInterval-BLE", ".csv", "BLE", 1, 10);
-        dataset3.saveColumnCharacteristics("out/data-testScanInterval-Combined", ".csv", "Combined", 1, 10);
+        //final MyBoxAndWhiskerCategoryDataset dataset3 = new MyBoxAndWhiskerCategoryDataset();
+        //testScanTrainAndTestDuration(measurementsFiltered, dataset3);
+        //dataset3.saveColumnCharacteristics("out/data-testScanInterval-WiFi", ".csv", "WiFi", 1, 10);
+        //dataset3.saveColumnCharacteristics("out/data-testScanInterval-BLE", ".csv", "BLE", 1, 10);
+        //dataset3.saveColumnCharacteristics("out/data-testScanInterval-Combined", ".csv", "Combined", 1, 10);
 
         final MyBoxAndWhiskerCategoryDataset dataset4 = new MyBoxAndWhiskerCategoryDataset();
         testPaperEvenOddBle(measurementsFiltered, dataset4);
@@ -584,11 +685,11 @@ public class Run extends ApplicationFrame {
             Graphics g = img.getGraphics();
             for (Measurement m : measurements) {
                 //if (m.getD.equals("29faa5a3-dff0-44b9-beed-351f1eaf7581")) {
-                if (m.getDeviceManufacturer().equals("Sony")) {
+                //if (m.getDeviceManufacturer().equals("Sony")) {
                     g.setColor(new Color(0f, 0f, 1f, .2f));
-                } else {
-                    g.setColor(new Color(1f, 0f, 0f, .2f));
-                }
+                //} else {
+                //    g.setColor(new Color(1f, 0f, 0f, .2f));
+                //}
                 g.fillOval(m.getX() - radius, m.getY() - radius, 2 * radius, 2 * radius);
             }
             ImageIO.write(img, "PNG", new File("img/J3NP-out.png"));
@@ -650,7 +751,6 @@ public class Run extends ApplicationFrame {
 
     }
 
-
     /**
      * Filter for corner situated measurements
      * @param m
@@ -663,6 +763,20 @@ public class Run extends ApplicationFrame {
         if (y<800 || y>=2100)
             if (x<488 || x>1700) return false;
 
+        return true;
+    }
+    
+    /**
+     * Check if measurement is from specific device
+     * 
+     * @param m to check
+     * @param type device type to filter
+     * @return boolean
+     */
+    private static boolean isDeviceType(Measurement m, String type) {
+        if(m != null && type != null && m.getDevice() != null) {
+            return type.equals(m.getDevice().getType());
+        }
         return true;
     }
 
@@ -993,8 +1107,8 @@ public class Run extends ApplicationFrame {
     }
 
     private static void testScanTrainAndTestDuration(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset) {
-        for (int i = 1000; i <= 10000; i+=1000) {
-            String tit = i/1000 + "";
+        for (int i = 5000; i <= 30000; i+=5000) {
+            String tit = i/5000 + "";
             final int ms = i;
             Predicate<TransmitterSignal> msFilter = s -> {
                 return s.getTime() <= ms;
@@ -1179,18 +1293,24 @@ public class Run extends ApplicationFrame {
     private static void testPaperWknn(List<Measurement> measurements, DefaultBoxAndWhiskerCategoryDataset dataset, boolean gridAggregate) {
         String kTitle = k + "";
 
+        logger.info("Started WKNN (WiFi)");
         addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
         }, k), gridAggregate), dataset, "WiFi", "WKNN");
-
+        logger.info("Finished WKNN (WiFi)");
+        
+        logger.info("Started WKNN (BLE)");
         addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
         }, k), gridAggregate), dataset, "BLE", "WKNN");
-
+        logger.info("Finished WKNN (BLE)");
+        
+        logger.info("Started WKNN (Combined)");
         addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
             return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
         }, k), gridAggregate), dataset, "Combined", "WKNN");
-
+        logger.info("Finished WKNN (Combined)");
+        
 //        addMySeries(crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
 //            return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilterBleA), measurement2.getReducedBleScans(defaultTxFilterBleA));
 //        }, k)), dataset, "BLE", "WKNN " + kTitle + " a");

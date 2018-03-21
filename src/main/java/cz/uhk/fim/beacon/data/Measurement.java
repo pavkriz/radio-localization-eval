@@ -14,22 +14,26 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.annotations.SerializedName;
 
 /**
  * Created by Kriz on 16. 11. 2015.
  */
 public class Measurement {
+    @SerializedName("bluetoothRecords")
     List<BleScan> bleScans = new ArrayList<>();
+    @SerializedName("cellularRecords")
     List<CellScan> cellScans = new ArrayList<>();
+    @SerializedName("wirelessRecords")
     List<WifiScan> wifiScans = new ArrayList<>();
     String id;
     int x;
     int y;
     String level;   // building and floor
     String manufacturer;
+    @SerializedName("deviceRecord")
+    DeviceEntry device;
+    @SerializedName("timestamp")
     String createdAt; // e.g. "2015-11-13 13:28:24"
     boolean trainingOnly; // do not use as "unknown" in evaluation, use only as a member of the training set
 
@@ -72,6 +76,14 @@ public class Measurement {
 
     public void setLevel(String level) {
         this.level = level;
+    }
+    
+    public DeviceEntry getDevice() {
+        return device;
+    }
+    
+    public void setDevice(DeviceEntry device) {
+        this.device = device;
     }
 
     public List<BleScan> getBleScans() {
@@ -220,7 +232,7 @@ public class Measurement {
      * @param String json
      * @return Measurement
      */
-    public Measurement fromJson(String json) {
+    /*public Measurement fromJson(String json) {
     	Measurement measurement = new Measurement();
     	try {	    	
 	    	JsonObject jsonObject = (JsonObject) new JsonParser().parse(json);    	
@@ -274,5 +286,5 @@ public class Measurement {
     		e.printStackTrace();
     	}
     	return measurement; 
-    }
+    }*/
 }
