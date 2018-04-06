@@ -1,5 +1,7 @@
 package cz.uhk.fim.beacon.stats;
 
+import java.util.Objects;
+
 /**
  * Created by Kriz on 17. 11. 2015.
  */

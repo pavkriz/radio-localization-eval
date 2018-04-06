@@ -27,6 +27,7 @@ public class Measurement {
     @SerializedName("wirelessRecords")
     List<WifiScan> wifiScans = new ArrayList<>();
     String id;
+    private String scanID;
     int x;
     int y;
     String level;   // building and floor
@@ -54,6 +55,14 @@ public class Measurement {
         this.id = id;
     }
 
+    public String getScanID() {
+        return scanID;
+    }
+
+    public void setScanID(String scanID) {
+        this.scanID = scanID;
+    }
+    
     public int getX() {
         return x;
     }

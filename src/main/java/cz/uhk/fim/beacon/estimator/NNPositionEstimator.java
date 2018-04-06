@@ -45,10 +45,44 @@ public class NNPositionEstimator implements PositionEstimator {
             return null;
         }
     }
+    
+    /**
+     * Returns nearest neighbour of the "uknown" measurement in "calibratedList" measurements.
+     * Same as function getNearestNeighbour() but it adds device type for neighbors. 
+     *
+     * @param calibratedList
+     * @param unknown
+     * @return
+     */
+    protected NearestNeighbour getNearestNeighbourByDeviceType(List<Measurement> calibratedList, Measurement unknown) {
+        NearestNeighbour nearest = new NearestNeighbour();
+        for (Measurement calibrated : calibratedList) {
+            // Get nearest only with the same device Type
+            if(unknown.getDevice().getType().equals(calibrated.getDevice().getType())) {
+                double dist = distanceCalculator.calcMeasurementsDistance(calibrated, unknown);
+                if (dist < nearest.distance || nearest.measurement == null) {
+                    nearest.measurement = calibrated;
+                    nearest.distance = dist;
+                }
+            }
+        }
+        logger.debug("getNearestNeighbourByDeviceType nearestDistance={} x={} y={} nearestBleScanSignals={} nearestWifiScanSignals={}", nearest.distance, nearest.measurement.getX(), nearest.measurement.getY(), nearest.measurement.getReducedBleScans(), nearest.measurement.getReducedWifiScans());
+        if (nearest.distance < Double.POSITIVE_INFINITY) {
+            return nearest;
+        } else {
+            return null;
+        }
+    }
 
     @Override
     public Position estimatePosition(List<Measurement> calibratedList, Measurement unknown) {
         NearestNeighbour nn = getNearestNeighbour(calibratedList, unknown);
+        return nn == null ? null : nn.getMeasurement().getPosition();
+    }
+
+    @Override
+    public Position estimatePositionByDeviceType(List<Measurement> calibratedList, Measurement unknown) {
+        NearestNeighbour nn = getNearestNeighbourByDeviceType(calibratedList, unknown);
         return nn == null ? null : nn.getMeasurement().getPosition();
     }
 

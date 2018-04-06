@@ -16,4 +16,13 @@ public interface PositionEstimator {
      * @return estimated position or null when estimator is unable to estimate a position (e.g. training set contains no relevant fingerprints)
      */
     Position estimatePosition(List<Measurement> calibratedList, Measurement unknown);
+    
+    /**
+     * Estimates position of the "unknown" measurement based on training set of measurements
+     * Uses only neighbors of the same device type.
+     * @param calibratedList training set of measurements
+     * @param unknown measurement whose position is to be estimated
+     * @return estimated position or null when estimator is unable to estimate a position (e.g. training set contains no relevant fingerprints)
+     */
+    Position estimatePositionByDeviceType(List<Measurement> calibratedList, Measurement unknown);
 }

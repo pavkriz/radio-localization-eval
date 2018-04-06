@@ -66,4 +66,44 @@ public class WKNNPositionEstimator extends NNPositionEstimator {
             return null;
         }
     }
+    
+    @Override
+    public Position estimatePositionByDeviceType(List<Measurement> calibratedList, Measurement unknown) {
+        List<Measurement> tempCalibratedList = new ArrayList<>(calibratedList);
+        Position p = new Position(0, 0, null);
+        double weightsSum = 0;
+        for (int i = 0; i < k; i++) {
+            NearestNeighbour nn = getNearestNeighbourByDeviceType(tempCalibratedList, unknown);
+            if (nn != null) {
+                // valid neighbour found
+                if (p.getFloor() == null) {
+                    // use floor from the first (nearest) neighbour
+                    // TODO check if floor match among all neighbours
+                    p.setFloor(nn.getMeasurement().getPosition().getFloor());
+                }
+                double dist = nn.getDistance();
+                if (dist == 0) dist = 0.0001; // in order to be able to calculate weight of neighbour in distace=1
+                double weight = weightedMode ? 1 / dist : 1;
+                //double weight = weightedMode ? 1.0d / (i+1) : 1;
+                //if (weightedMode) weight = weight / (i+1);
+                weightsSum += weight;
+                // first part of centroid calculation
+                p.setX(p.getX() + weight * nn.getMeasurement().getPosition().getX());
+                p.setY(p.getY() + weight * nn.getMeasurement().getPosition().getY());
+                // remove the (last) nearest neighbour from temporary calibrated list
+                // (in order to find next nearest neighbour in the next iteration)
+                tempCalibratedList.remove(nn.getMeasurement());
+            }
+        }
+        if (weightsSum > 0) {
+            // second part of centroid calculation
+            p.setX(p.getX() / weightsSum);
+            p.setY(p.getY() / weightsSum);
+            return p;
+        } else {
+            // no valid neighbours found
+            return null;
+        }
+    }
+    
 }
