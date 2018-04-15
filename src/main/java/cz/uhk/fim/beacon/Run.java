@@ -170,10 +170,11 @@ public class Run extends ApplicationFrame {
      */
     private static List<NumberValue> crossValidate(List<Measurement> measurements, PositionEstimator estimator, boolean gridAggregate, List<Measurement> calibrated, boolean ignoreTrainingOnly, boolean byDeviceType) {
         List<NumberValue> listOfErrors = new ArrayList<>();
+        
         // test by leaving one measurement out as the unknown one and the rest as the calibrated ones
         Stream<Measurement> stream = measurements.parallelStream();
         if (!ignoreTrainingOnly) stream = stream.filter(m -> !m.isTrainingOnly());
-        stream.forEach(unknown -> {
+        stream.forEach(unknown -> {           
             List<Measurement> calibratedList = new ArrayList<>();
             // make the copy of the original measurement list without the left-out ("unknown") measurement
             calibratedList.addAll(calibrated);
@@ -384,14 +385,32 @@ public class Run extends ApplicationFrame {
                                         //&& isDeviceType(m, "wear")
                 ).collect(Collectors.toList());
 
+        // Sort fingerprints by x and y
+        /*measurementsFiltered.sort((Object o1, Object o2) -> {
+            Integer x1 = ((Measurement) o1).getX();
+            Integer x2 = ((Measurement) o2).getX();
+            int sComp = x1.compareTo(x2);
+            
+            if (sComp != 0) {
+                return sComp;
+            }
+            
+            Integer y1 = ((Measurement) o1).getY();
+            Integer y2 = ((Measurement) o2).getY();
+            return y1.compareTo(y2);
+        });*/
+        
         // Combine measurements based on scanId
+        // TODO: fix the influence on measurementsFiltered
+        /*List<Measurement> measurementsTemp = new ArrayList<>(measurementsFiltered);
         List<Measurement> measurementsCombined = new ArrayList<>();
-        for(Measurement measurement : measurementsFiltered) {
+        for(Measurement measurement : measurementsTemp) {
             if(measurement.getDevice().getType().equals("phone")) {
                 // Get measuremets with the same scanId
                 List<Measurement> measurementsSameScanId = measurements.stream()
                     .filter(m ->
                         !isDeviceType(m, "phone")
+                            && !m.getId().equals(measurement.getId())
                             && m.getScanID().equals(measurement.getScanID())
                     ).collect(Collectors.toList());
                 
@@ -404,7 +423,7 @@ public class Run extends ApplicationFrame {
                 
                 measurementsCombined.add(measurement);
             }
-        }
+        }*/
         
         //measurementsFiltered = compactGridPoints(measurementsFiltered);
         //measurementsFiltered = split20s(measurementsFiltered);
@@ -445,7 +464,7 @@ public class Run extends ApplicationFrame {
 
         logger.info("Measurements count: {}", measurements.size());
         logger.info("Filtered measurements count: {}", measurementsFiltered.size());
-        logger.info("Combined measurements count: {}", measurementsCombined.size());
+        //logger.info("Combined measurements count: {}", measurementsCombined.size());
 
         // paper
         //testPaperWknn(measurementsFiltered, dataset, false);
@@ -460,6 +479,8 @@ public class Run extends ApplicationFrame {
 
         //drawMeasurements(measurementsFiltered);
         //drawMeasurements2(measurementsFiltered,br.getBeacons());
+        //drawMeasurements2(measurementsCombined,br.getBeacons());
+        //drawAverageError(measurementsFiltered,br.getBeacons());
         //drawNumberOfTransmitters(measurementsFiltered);
         //drawWorstEstimates(measurementsFiltered);
         //testTransmittersTotal(measurementsFiltered, dataset2);
@@ -474,7 +495,8 @@ public class Run extends ApplicationFrame {
         //Run me = new Run("Results", dataset2);
 
         //generateDataForGnuplot(measurementsFiltered);
-
+        //generateDataForGnuplot(measurementsCombined);
+        
         logger.info("Finished");
 
         me.pack();
@@ -484,12 +506,18 @@ public class Run extends ApplicationFrame {
 
     private static void showPaperNumberOfSignals(List<Measurement> measurementsFiltered) {
         int sum = 0;
+        int bleSum = 0;
+        int wifiSum = 0;
         for (Measurement m : measurementsFiltered) {
             sum = sum + m.getBleScans().size();
+            bleSum += m.getBleScans().size();
             sum = sum + m.getWifiScans().size();
+            wifiSum += m.getWifiScans().size();
         }
         System.out.println("Total number measurementss: " + measurementsFiltered.size());
         System.out.println("Total number of RSSIs: " + sum);
+        System.out.println("Total number of RSSIs (BLE): " + bleSum);
+        System.out.println("Total number of RSSIs (WiFi): " + wifiSum);
     }
 
     private static List<Measurement> split20s(List<Measurement> measurementsFiltered) {
@@ -791,13 +819,13 @@ public class Run extends ApplicationFrame {
     }
 
     private static void generateDataForGnuplot(List<Measurement> measurementsFiltered) {
-        final MyBoxAndWhiskerCategoryDataset dataset1 = new MyBoxAndWhiskerCategoryDataset();
-        testNumberOfTransmitters1(measurementsFiltered, dataset1);
-        dataset1.saveColumns("out/data-testNumberOfTransmitters1-", ".csv");
+        //final MyBoxAndWhiskerCategoryDataset dataset1 = new MyBoxAndWhiskerCategoryDataset();
+        //testNumberOfTransmitters1(measurementsFiltered, dataset1);
+        //dataset1.saveColumns("out/data-testNumberOfTransmitters1-", ".csv");
 
-        final MyBoxAndWhiskerCategoryDataset dataset2 = new MyBoxAndWhiskerCategoryDataset();
-        testPaperWknn(measurementsFiltered, dataset2, false);
-        dataset2.saveColumns("out/data-testWKNN-", ".csv");
+        //final MyBoxAndWhiskerCategoryDataset dataset2 = new MyBoxAndWhiskerCategoryDataset();
+        //testPaperWknn(measurementsFiltered, dataset2, false);
+        //dataset2.saveColumns("out/data-testWKNN-", ".csv");
 
         //final MyBoxAndWhiskerCategoryDataset dataset3 = new MyBoxAndWhiskerCategoryDataset();
         //testScanTrainAndTestDuration(measurementsFiltered, dataset3);
@@ -805,9 +833,17 @@ public class Run extends ApplicationFrame {
         //dataset3.saveColumnCharacteristics("out/data-testScanInterval-BLE", ".csv", "BLE", 1, 10);
         //dataset3.saveColumnCharacteristics("out/data-testScanInterval-Combined", ".csv", "Combined", 1, 10);
 
-        final MyBoxAndWhiskerCategoryDataset dataset4 = new MyBoxAndWhiskerCategoryDataset();
-        testPaperEvenOddBle(measurementsFiltered, dataset4);
-        dataset4.saveColumns("out/data-testEvenOdd-", ".csv");
+        //final MyBoxAndWhiskerCategoryDataset dataset4 = new MyBoxAndWhiskerCategoryDataset();
+        //testPaperEvenOddBle(measurementsFiltered, dataset4);
+        //dataset4.saveColumns("out/data-testEvenOdd-", ".csv");
+        
+        //final MyBoxAndWhiskerCategoryDataset dataset5 = new MyBoxAndWhiskerCategoryDataset();
+        //testPaperWknnDeviceBased(measurementsFiltered, dataset5, false);
+        //dataset5.saveColumns("out/wknn_multiple-", ".csv");
+        
+        final MyBoxAndWhiskerCategoryDataset dataset6 = new MyBoxAndWhiskerCategoryDataset();
+        testPaperWknnDeviceBased(measurementsFiltered, dataset6, false);
+        dataset6.saveColumns("out/wknn_combined-", ".csv");
     }
 
     private static void drawMeasurements(List<Measurement> measurements) {
@@ -832,7 +868,7 @@ public class Run extends ApplicationFrame {
 
     }
 
-    /**
+        /**
      * drawMeasurements - with "error-diameter" circles
      * @param measurements
      * @param beacons
@@ -841,16 +877,21 @@ public class Run extends ApplicationFrame {
         try {
             SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
 
-            //WKNN Combined, k = 2
-            //List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-            //    return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
-            //}, 2));
-
-            logger.info("Started WKNN (BLE)");
+            //WKNN Combined Classic, k = 2
             List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
-                return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
-            }, k));
-            logger.info("Finished WKNN (BLE)");
+                return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+            }, 2));
+            
+            //WKNN Combined Multiple fingerprints, k = 2
+            //List<NumberValue> errors = crossValidateByDeviceType(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+            //    return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+            //}, 2), false, false);
+
+            //logger.info("Started WKNN (BLE)");
+            //List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+            //    return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
+            //}, 2));
+            //logger.info("Finished WKNN (BLE)");
             
             errors.sort((e1,e2) -> (int)(e1.getNumber().doubleValue()-e2.getNumber().doubleValue()));
 
@@ -870,13 +911,17 @@ public class Run extends ApplicationFrame {
                     m.setX(m.getX() - 420);
                     
                     double num = numberValue.getNumber().doubleValue();
+                    // Fix to display errors with 0 error on the map
+                    //if(num < 0.2) {
+                    //    num = 0.2;
+                    //} 
                     if (num > 3) {
                         int rw = 255 - (int) Math.round(num  * 10);
                         if (rw>255) rw=255;
                         if (rw<0) rw=0;
                         g.setColor(new Color(255, rw, rw, 80));
                     } else g.setColor(new Color(0,255,0,80));
-                    radius = (int)(numberValue.getNumber().doubleValue() / floorPixelsToMeters / 2);
+                    radius = (int)(num / floorPixelsToMeters / 2);
                     g.fillOval(m.getX() - radius, m.getY() - radius, 2 * radius, 2 * radius);
                     g.setColor(Color.BLACK);
                     g.drawOval(m.getX() - radius, m.getY() - radius, 2 * radius, 2 * radius);
@@ -885,9 +930,105 @@ public class Run extends ApplicationFrame {
                     g.drawLine(m.getX()-10,m.getY()-10,m.getX()+10,m.getY()+10);
                     g.drawLine(m.getX()+10,m.getY()-10,m.getX()-10,m.getY()+10);
                 }
-            }
+            }            
             drawBeaconsToImage(img,beacons);
             ImageIO.write(img, "PNG", new File("img/J3NP-Circles-out.png"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+    
+    /**
+     * drawMeasurements - with "error-diameter" circles
+     * @param measurements
+     * @param beacons
+     */
+    private static void drawAverageError(List<Measurement> measurements, List<BeaconsRepo.BeaconRec> beacons) {
+        try {
+            SignalSpaceDistanceCalculator ssc = new SignalSpaceDistanceCalculator(-105);
+
+            //WKNN Combined, k = 2
+            //logger.info("Started WKNN (WiFi)");
+            //List<NumberValue> errors =  crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+            //    return ssc.calcDistance(measurement1.getReducedWifiScans(defaultTxFilter), measurement2.getReducedWifiScans(defaultTxFilter));
+            //}, k));
+            //logger.info("Finished WKNN (WiFi)");
+
+            //logger.info("Started WKNN (BLE)");
+            List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+                return ssc.calcDistance(measurement1.getReducedBleScans(defaultTxFilter), measurement2.getReducedBleScans(defaultTxFilter));
+            }, k));
+            //logger.info("Finished WKNN (BLE)");
+            
+            //logger.info("Started WKNN (Combined)");
+            //List<NumberValue> errors = crossValidate(measurements, new WKNNPositionEstimator((measurement1, measurement2) -> {
+            //    return ssc.calcDistance(measurement1.getReducedCombinedScans(defaultTxFilter), measurement2.getReducedCombinedScans(defaultTxFilter));
+            //}, k));
+            //logger.info("Finished WKNN (Combined)");
+            
+            errors.sort((e1,e2) -> (int)(e1.getNumber().doubleValue()-e2.getNumber().doubleValue()));
+
+            Map<String,Measurement> measurementMap = new TreeMap<>();
+            for(Measurement m : measurements) {
+                measurementMap.put(m.getId(),m);
+            }
+            
+            Map<Position, List<NumberValue>> errorByPossition = new HashMap<>();
+            for (NumberValue numberValue : errors) {
+                Measurement m = measurementMap.get(numberValue.getLabel());
+                if(m!=null) {
+                    Position pos = new Position(m.getX() - 420, m.getY(), m.getLevel());
+                    if(errorByPossition.containsKey(pos)) {
+                        List<NumberValue> errorsInPosition = errorByPossition.get(pos);
+                        errorsInPosition.add(numberValue);
+                    } else {
+                        List<NumberValue> errorsInPositionNew = new ArrayList<>();
+                        errorsInPositionNew.add(numberValue);
+                        errorByPossition.put(pos, errorsInPositionNew);
+                    }
+                }
+            }
+            
+            Map<Position, Double> avgErrors = new HashMap<>();
+            errorByPossition.forEach((k,v)->{
+                double errorD = 0;
+                int count = 0;
+                for(NumberValue nm : v) {
+                    errorD += nm.getNumber().doubleValue();
+                    count++;
+                }
+                
+                if(count > 0) {
+                    double avgError = errorD / count;
+                    avgErrors.put(k, avgError);
+                }
+            });
+            
+            BufferedImage img = ImageIO.read(new File("img/J3NP-notext-RGB.png"));
+            Graphics2D g = (Graphics2D) img.getGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION,RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+            avgErrors.forEach((pos,v)->{
+                int radius = 10;
+                double num = v;
+                if (num > 3) {
+                    int rw = 255 - (int) Math.round(num  * 10);
+                    if (rw>255) rw=255;
+                    if (rw<0) rw=0;
+                    g.setColor(new Color(255, rw, rw, 80));
+                } else g.setColor(new Color(0,255,0,80));
+                radius = (int)(v / floorPixelsToMeters / 2);
+                g.fillOval((int)pos.getX() - radius, (int)pos.getY() - radius, 2 * radius, 2 * radius);
+                g.setColor(Color.BLACK);
+                g.drawOval((int)pos.getX() - radius, (int)pos.getY() - radius, 2 * radius, 2 * radius);
+                /*else {//measurement not localized
+                    g.setColor(new Color(0,0,0,1));
+                    g.drawLine(m.getX()-10,m.getY()-10,m.getX()+10,m.getY()+10);
+                    g.drawLine(m.getX()+10,m.getY()-10,m.getX()-10,m.getY()+10);
+                }*/
+            });
+            drawBeaconsToImage(img,beacons);
+            ImageIO.write(img, "PNG", new File("img/J3NP-average-circles-out.png"));
         } catch (IOException e) {
             e.printStackTrace();
         }
